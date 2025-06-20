@@ -137,7 +137,7 @@ library CrossChainTestLib {
             uint32(block.timestamp)
         );
     }
-    
+
     function buildAuctionDetails(
         uint24 gasBumpEstimate,
         uint32 gasPriceEstimate,
@@ -307,7 +307,7 @@ library CrossChainTestLib {
     function prepareDataSrc(
         OrderDetails memory orderDetails,
         EscrowDetails memory escrowDetails,
-        address factory,
+        address payable factory,
         IOrderMixin limitOrderProtocol
     ) internal returns(SwapData memory swapData) {
         swapData.extraData = buidDynamicData(
@@ -374,7 +374,7 @@ library CrossChainTestLib {
             timelocks: escrowDetails.timelocks
         });
 
-        swapData.srcClone = EscrowSrc(BaseEscrowFactory(factory).addressOfEscrowSrc(swapData.immutables));
+        swapData.srcClone = EscrowSrc(BaseEscrowFactory(payable(factory)).addressOfEscrowSrc(swapData.immutables));
         // 0x08 - whitelist length = 1, 0x01 - turn on resolver fee
         swapData.extraData = abi.encodePacked(orderDetails.resolverFee, whitelist, bytes1(0x08) | bytes1(0x01), swapData.extraData);
     }

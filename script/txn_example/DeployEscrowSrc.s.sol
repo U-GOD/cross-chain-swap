@@ -36,7 +36,7 @@ contract DeployEscrowSrc is Script {
             withdrawal: 300, // 5min finality lock
             publicWithdrawal: 600, // 5m for private withdrawal
             cancellation: 900, // 5m for public withdrawal
-            publicCancellation: 1200 // 5m for private cancellation 
+            publicCancellation: 1200 // 5m for private cancellation
         });
         CrossChainTestLib.DstTimelocks memory dstTimelocks = CrossChainTestLib.DstTimelocks({
             withdrawal: 300, // 5min finality lock for test
@@ -84,7 +84,7 @@ contract DeployEscrowSrc is Script {
                 fakeOrder: false,
                 allowMultipleFills: false
             }),
-            escrowFactory,
+            payable(escrowFactory),
             limitOrderProtocol
         );
 
@@ -101,7 +101,7 @@ contract DeployEscrowSrc is Script {
             "", // interaction
             0 // threshold
         );
-        
+
         vm.startBroadcast(deployerPK);
         IERC20(srcToken).approve(address(limitOrderProtocol), srcAmount);
         resolver.deploySrc(

@@ -10,7 +10,8 @@ import { SafeERC20 } from "solidity-utils/contracts/libraries/SafeERC20.sol";
 
 import { IOrderMixin } from "limit-order-protocol/contracts/interfaces/IOrderMixin.sol";
 import { MakerTraitsLib } from "limit-order-protocol/contracts/libraries/MakerTraitsLib.sol";
-import { ResolverValidationExtension } from "limit-order-settlement/contracts/extensions/ResolverValidationExtension.sol";
+import { FeeTaker } from "limit-order-protocol/contracts/extensions/FeeTaker.sol";
+import { SimpleSettlement } from "limit-order-settlement/contracts/SimpleSettlement.sol";
 
 import { ImmutablesLib } from "./libraries/ImmutablesLib.sol";
 import { Timelocks, TimelocksLib } from "./libraries/TimelocksLib.sol";
@@ -26,7 +27,7 @@ import { MerkleStorageInvalidator } from "./MerkleStorageInvalidator.sol";
  * @dev Immutable variables must be set in the constructor of the derived contracts.
  * @custom:security-contact security@1inch.io
  */
-abstract contract BaseEscrowFactory is IEscrowFactory, ResolverValidationExtension, MerkleStorageInvalidator {
+abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleStorageInvalidator {
     using AddressLib for Address;
     using Clones for address;
     using ImmutablesLib for IBaseEscrow.Immutables;
@@ -61,7 +62,7 @@ abstract contract BaseEscrowFactory is IEscrowFactory, ResolverValidationExtensi
         uint256 takingAmount,
         uint256 remainingMakingAmount,
         bytes calldata extraData
-    ) internal override(ResolverValidationExtension) {
+    ) internal override(FeeTaker) {
         uint256 superArgsLength = extraData.length - SRC_IMMUTABLES_LENGTH;
         super._postInteraction(
             order, extension, orderHash, taker, makingAmount, takingAmount, remainingMakingAmount, extraData[:superArgsLength]

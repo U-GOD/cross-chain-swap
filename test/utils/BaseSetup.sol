@@ -125,15 +125,15 @@ contract BaseSetup is Test, Utils {
 
         if (isZkSync) {
             escrowFactory = new EscrowFactoryZkSync(
-                address(limitOrderProtocol), inch, accessToken, charlie.addr,  RESCUE_DELAY, RESCUE_DELAY
+                address(limitOrderProtocol), address(inch), accessToken, charlie.addr,  RESCUE_DELAY, RESCUE_DELAY
             );
         } else {
-            escrowFactory = new EscrowFactory(address(limitOrderProtocol), inch, accessToken, charlie.addr, RESCUE_DELAY, RESCUE_DELAY);
+            escrowFactory = new EscrowFactory(address(limitOrderProtocol), address(inch), accessToken, charlie.addr, RESCUE_DELAY, RESCUE_DELAY);
         }
         escrowSrc = EscrowSrc(escrowFactory.ESCROW_SRC_IMPLEMENTATION());
         escrowDst = EscrowDst(escrowFactory.ESCROW_DST_IMPLEMENTATION());
 
-        feeBank = IFeeBank(escrowFactory.FEE_BANK());
+        // feeBank = IFeeBank(escrowFactory.FEE_BANK());
 
         vm.label(address(escrowFactory), "EscrowFactory");
         vm.label(address(escrowSrc), "EscrowSrc");
@@ -209,7 +209,7 @@ contract BaseSetup is Test, Utils {
                 fakeOrder: fakeOrder,
                 allowMultipleFills: allowMultipleFills
             }),
-            address(escrowFactory),
+            payable(escrowFactory),
             limitOrderProtocol
         );
     }
