@@ -5,6 +5,7 @@ pragma solidity 0.8.23;
 import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { Merkle } from "murky/src/Merkle.sol";
 
+import { FeeTaker } from "limit-order-protocol/contracts/extensions/FeeTaker.sol";
 import { EscrowDst } from "contracts/EscrowDst.sol";
 import { IEscrowFactory } from "contracts/interfaces/IEscrowFactory.sol";
 import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
@@ -189,17 +190,17 @@ contract EscrowFactoryTest is BaseSetup {
         feeBank.deposit(10 ether);
 
         vm.prank(address(limitOrderProtocol));
-        // vm.expectRevert(ResolverValidationExtension.ResolverCanNotFillOrder.selector);
-        // escrowFactory.postInteraction(
-        //     swapData.order,
-        //     "", // extension
-        //     swapData.orderHash,
-        //     alice.addr, // taker
-        //     MAKING_AMOUNT,
-        //     TAKING_AMOUNT,
-        //     0, // remainingMakingAmount
-        //     swapData.extraData
-        // );
+        vm.expectRevert(FeeTaker.OnlyWhitelistOrAccessToken.selector);
+        escrowFactory.postInteraction(
+            swapData.order,
+            "", // extension
+            swapData.orderHash,
+            alice.addr, // taker
+            MAKING_AMOUNT,
+            TAKING_AMOUNT,
+            0, // remainingMakingAmount
+            swapData.extraData
+        );
     }
 
     function test_NoUnsafeDeploymentForTaker() public {
