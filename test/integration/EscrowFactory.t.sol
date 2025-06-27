@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 import { TakerTraits } from "limit-order-protocol/contracts/libraries/TakerTraitsLib.sol";
 import { Merkle } from "murky/src/Merkle.sol";
 import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
@@ -10,6 +12,7 @@ import { IEscrowFactory } from "contracts/interfaces/IEscrowFactory.sol";
 import { BaseSetup } from "../utils/BaseSetup.sol";
 import { CrossChainTestLib } from "../utils/libraries/CrossChainTestLib.sol";
 import { ResolverReentrancy } from "../utils/mocks/ResolverReentrancy.sol";
+import { CustomPostInteraction } from "../utils/mocks/CustomPostInteraction.sol";
 
 contract IntegrationEscrowFactoryTest is BaseSetup {
     function setUp() public virtual override {
@@ -31,7 +34,10 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
             dstSafetyDeposit,
             address(0), // receiver
             false, // fakeOrder
-            false // allowMultipleFills
+            false, // allowMultipleFills,
+            "",
+            dstAmount,
+            PROTOCOL_SURPLUS_FEE
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.privateKey, swapData.orderHash);
@@ -52,7 +58,124 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
             (bool success,) = address(swapData.srcClone).call{ value: uint64(srcAmount) * 10 / 100 }("");
             assertEq(success, true);
 
-            uint256 resolverCredit = feeBank.availableCredit(bob.addr);
+            vm.prank(bob.addr);
+            limitOrderProtocol.fillOrderArgs(
+                swapData.order,
+                r,
+                vs,
+                srcAmount, // amount
+                takerTraits,
+                args
+            );
+        }
+
+        assertEq(usdc.balanceOf(address(swapData.srcClone)), srcAmount);
+        assertEq(address(swapData.srcClone).balance, srcSafetyDeposit);
+    }
+
+    function testFuzz_DeployCloneForMakerIntWithCustomPostInteraction(bytes32 secret, uint56 srcAmount, uint56 dstAmount) public {
+        vm.assume(srcAmount > 0 && dstAmount > 0);
+        uint256 srcSafetyDeposit = uint256(srcAmount) * 10 / 100;
+        uint256 dstSafetyDeposit = uint256(dstAmount) * 10 / 100;
+
+        (bytes memory postInterationCustomData) = abi.encodePacked(
+            bytes20(address(customPostInteractor)),
+            bytes1(uint8(0x1)) // random value
+        );
+
+        CrossChainTestLib.SwapData memory swapData = _prepareDataSrcCustom(
+            keccak256(abi.encode(secret)),
+            srcAmount,
+            dstAmount,
+            srcSafetyDeposit,
+            dstSafetyDeposit,
+            address(0), // receiver
+            false, // fakeOrder
+            false, // allowMultipleFills,
+            postInterationCustomData,
+            dstAmount,
+            PROTOCOL_SURPLUS_FEE
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.privateKey, swapData.orderHash);
+        bytes32 vs = bytes32((uint256(v - 27) << 255)) | s;
+
+        (TakerTraits takerTraits, bytes memory args) = CrossChainTestLib.buildTakerTraits(
+            true, // makingAmount
+            false, // unwrapWeth
+            false, // skipMakerPermit
+            false, // usePermit2
+            address(swapData.srcClone), // target
+            swapData.extension, // extension
+            "", // interaction
+            0 // threshold
+        );
+
+        {
+            (bool success,) = address(swapData.srcClone).call{ value: uint64(srcAmount) * 10 / 100 }("");
+            assertEq(success, true);
+
+            vm.prank(bob.addr);
+            vm.expectEmit();
+            emit CustomPostInteraction.Invoked(abi.encodePacked(bytes1(uint8(0x1))));
+            limitOrderProtocol.fillOrderArgs(
+                swapData.order,
+                r,
+                vs,
+                srcAmount, // amount
+                takerTraits,
+                args
+            );
+
+        }
+
+        assertEq(usdc.balanceOf(address(swapData.srcClone)), srcAmount);
+        assertEq(address(swapData.srcClone).balance, srcSafetyDeposit);
+    }
+
+    function testFuzz_DeployCloneForMakerIntWithRescueFundsNative(bytes32 secret, uint56 srcAmount, uint56 dstAmount) public {
+        vm.assume(srcAmount > 0 && dstAmount > 0);
+        uint256 srcSafetyDeposit = uint256(srcAmount) * 10 / 100;
+        uint256 dstSafetyDeposit = uint256(dstAmount) * 10 / 100;
+
+        CrossChainTestLib.SwapData memory swapData = _prepareDataSrcCustom(
+            keccak256(abi.encode(secret)),
+            srcAmount,
+            dstAmount,
+            srcSafetyDeposit,
+            dstSafetyDeposit,
+            address(0), // receiver
+            false, // fakeOrder
+            false, // allowMultipleFills
+            "",
+            dstAmount,
+            PROTOCOL_SURPLUS_FEE
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.privateKey, swapData.orderHash);
+        bytes32 vs = bytes32((uint256(v - 27) << 255)) | s;
+
+        (TakerTraits takerTraits, bytes memory args) = CrossChainTestLib.buildTakerTraits(
+            true, // makingAmount
+            false, // unwrapWeth
+            false, // skipMakerPermit
+            false, // usePermit2
+            address(swapData.srcClone), // target
+            swapData.extension, // extension
+            "", // interaction
+            0 // threshold
+        );
+
+        uint256 dust = 1 ether;
+        (bool success, ) = address(escrowFactory).call{value: dust}("");
+        assertEq(success, true);
+        assertEq(address(escrowFactory).balance, dust);
+
+        uint256 charlieBalance = charlie.addr.balance; 
+
+        {
+            (success,) = address(swapData.srcClone).call{ value: uint64(srcAmount) * 10 / 100 }("");
+            assertEq(success, true);
 
             vm.prank(bob.addr);
             limitOrderProtocol.fillOrderArgs(
@@ -63,12 +186,79 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
                 takerTraits,
                 args
             );
-
-            assertEq(feeBank.availableCredit(bob.addr), resolverCredit);
         }
 
         assertEq(usdc.balanceOf(address(swapData.srcClone)), srcAmount);
         assertEq(address(swapData.srcClone).balance, srcSafetyDeposit);
+
+        vm.prank(charlie.addr);
+        escrowFactory.rescueFunds(IERC20(address(0)), dust);
+        assertEq(charlie.addr.balance - charlieBalance, dust);
+    }
+
+    function testFuzz_DeployCloneForMakerIntWithRescueFundsERC20(bytes32 secret, uint56 srcAmount, uint56 dstAmount) public {
+        vm.assume(srcAmount > 0 && dstAmount > 0);
+        uint256 srcSafetyDeposit = uint256(srcAmount) * 10 / 100;
+        uint256 dstSafetyDeposit = uint256(dstAmount) * 10 / 100;
+
+        CrossChainTestLib.SwapData memory swapData = _prepareDataSrcCustom(
+            keccak256(abi.encode(secret)),
+            srcAmount,
+            dstAmount,
+            srcSafetyDeposit,
+            dstSafetyDeposit,
+            address(0), // receiver
+            false, // fakeOrder
+            false, // allowMultipleFills
+            "",
+            dstAmount,
+            PROTOCOL_SURPLUS_FEE
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.privateKey, swapData.orderHash);
+        bytes32 vs = bytes32((uint256(v - 27) << 255)) | s;
+
+        (TakerTraits takerTraits, bytes memory args) = CrossChainTestLib.buildTakerTraits(
+            true, // makingAmount
+            false, // unwrapWeth
+            false, // skipMakerPermit
+            false, // usePermit2
+            address(swapData.srcClone), // target
+            swapData.extension, // extension
+            "", // interaction
+            0 // threshold
+        );
+
+        uint256 dust = 1 ether;
+        usdc.mint(bob.addr, dust);
+
+        vm.prank(bob.addr);
+        usdc.transfer(address(escrowFactory), dust);
+        assertEq(usdc.balanceOf(address(escrowFactory)), dust);
+
+        uint256 charlieBalance = usdc.balanceOf(charlie.addr); 
+
+        {
+            (bool success,) = address(swapData.srcClone).call{ value: uint64(srcAmount) * 10 / 100 }("");
+            assertEq(success, true);
+
+            vm.prank(bob.addr);
+            limitOrderProtocol.fillOrderArgs(
+                swapData.order,
+                r,
+                vs,
+                srcAmount, // amount
+                takerTraits,
+                args
+            );
+        }
+
+        assertEq(usdc.balanceOf(address(swapData.srcClone)), srcAmount);
+        assertEq(address(swapData.srcClone).balance, srcSafetyDeposit);
+
+        vm.prank(charlie.addr);
+        escrowFactory.rescueFunds(IERC20(address(usdc)), dust);
+        assertEq(usdc.balanceOf(charlie.addr) - charlieBalance, dust);
     }
 
     function test_DeployCloneForMakerNonWhitelistedResolverInt() public {
@@ -95,13 +285,10 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
             (bool success,) = srcClone.call{ value: SRC_SAFETY_DEPOSIT }("");
             assertEq(success, true);
 
-            uint256 resolverCredit = feeBank.availableCredit(bob.addr);
             inch.mint(charlie.addr, 1000 ether);
             accessToken.mint(charlie.addr, 1);
 
             vm.startPrank(charlie.addr);
-            inch.approve(address(feeBank), 1000 ether);
-            feeBank.deposit(10 ether);
             limitOrderProtocol.fillOrderArgs(
                 swapData.order,
                 r,
@@ -111,8 +298,6 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
                 args
             );
             vm.stopPrank();
-
-            assertLt(feeBank.availableCredit(charlie.addr), resolverCredit);
         }
 
         assertEq(usdc.balanceOf(srcClone), MAKING_AMOUNT);

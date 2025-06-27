@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 
 import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
+import { IEscrowSrc } from "contracts/interfaces/IEscrowSrc.sol";
 import { IEscrowFactory } from "contracts/interfaces/IEscrowFactory.sol";
 import { IResolverExample } from "contracts/interfaces/IResolverExample.sol";
 import { Timelocks, TimelocksLib } from "contracts/libraries/TimelocksLib.sol";
@@ -45,7 +46,7 @@ contract CancelSrc is Script {
         address[] memory targets = new address[](1);
         bytes[] memory data = new bytes[](1);
         targets[0] = escrow;
-        data[0] = abi.encodeWithSelector(IBaseEscrow(escrow).cancel.selector, immutables);
+        data[0] = abi.encodeWithSelector(IEscrowSrc(escrow).cancel.selector, immutables);
 
         vm.startBroadcast(deployerPK);
         resolver.arbitraryCalls(targets, data);

@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-// import { ResolverValidationExtension } from "limit-order-settlement/contracts/extensions/ResolverValidationExtension.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+
 import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { Merkle } from "murky/src/Merkle.sol";
 
 import { FeeTaker } from "limit-order-protocol/contracts/extensions/FeeTaker.sol";
 import { EscrowDst } from "contracts/EscrowDst.sol";
+import { EscrowSrc } from "contracts/EscrowSrc.sol";
+import { BaseEscrowFactory } from "contracts/BaseEscrowFactory.sol";
 import { IEscrowFactory } from "contracts/interfaces/IEscrowFactory.sol";
-import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
+import { IEscrowDst } from "contracts/interfaces/IEscrowDst.sol";
 import { Timelocks, TimelocksLib } from "contracts/libraries/TimelocksLib.sol";
 
 import { BaseSetup } from "../utils/BaseSetup.sol";
@@ -48,7 +52,10 @@ contract EscrowFactoryTest is BaseSetup {
             dstSafetyDeposit,
             address(0),
             true, // fakeOrder
-            false // allowMultipleFills
+            false, // allowMultipleFills,
+            "",
+            dstAmount,
+            PROTOCOL_SURPLUS_FEE
         );
 
         (bool success,) = address(swapData.srcClone).call{ value: srcSafetyDeposit }("");
@@ -81,19 +88,28 @@ contract EscrowFactoryTest is BaseSetup {
             DST_SAFETY_DEPOSIT,
             receiver,
             true,
-            false
+            false,
+            "",
+            TAKING_AMOUNT,
+            PROTOCOL_SURPLUS_FEE
         );
 
         (bool success,) = address(swapData.srcClone).call{ value: SRC_SAFETY_DEPOSIT }("");
         assertEq(success, true);
         usdc.transfer(address(swapData.srcClone), MAKING_AMOUNT);
 
+        (IEscrowDst.ImmutablesDst memory immutablesDst,,) = _prepareDataDst();
+
         IEscrowFactory.DstImmutablesComplement memory immutablesComplement = IEscrowFactory.DstImmutablesComplement({
             maker: Address.wrap(uint160(receiver)),
             amount: TAKING_AMOUNT,
             token: Address.wrap(uint160(address(dai))),
             safetyDeposit: DST_SAFETY_DEPOSIT,
-            chainId: block.chainid
+            chainId: block.chainid,
+            protocolFeeRecipient: immutablesDst.protocolFeeRecipient,
+            integratorFeeRecipient: immutablesDst.integratorFeeRecipient,
+            protocolFeeAmount: immutablesDst.protocolFeeAmount,
+            integratorFeeAmount: immutablesDst.integratorFeeAmount
         });
 
         vm.prank(address(limitOrderProtocol));
@@ -114,10 +130,94 @@ contract EscrowFactoryTest is BaseSetup {
         assertEq(address(swapData.srcClone).balance, SRC_SAFETY_DEPOSIT);
     }
 
+    function testFuzz_DeployWithFullFeesForResolverNotInWhitelistWithAccessToken() public {
+        address receiver = charlie.addr;
+        CrossChainTestLib.SwapData memory swapData = _prepareDataSrcCustom(
+            HASHED_SECRET,
+            MAKING_AMOUNT,
+            TAKING_AMOUNT,
+            SRC_SAFETY_DEPOSIT,
+            DST_SAFETY_DEPOSIT,
+            receiver,
+            true,
+            false,
+            "",
+            TAKING_AMOUNT,
+            PROTOCOL_SURPLUS_FEE
+        );
+
+        address taker = mary.addr;
+        accessToken.mint(taker, 1);
+
+        swapData.immutables.taker = Address.wrap(uint160(taker));
+        EscrowSrc srcClone = EscrowSrc(BaseEscrowFactory(payable(address(escrowFactory))).addressOfEscrowSrc(swapData.immutables));
+
+        (bool success,) = address(srcClone).call{ value: SRC_SAFETY_DEPOSIT }("");
+        assertEq(success, true);
+        usdc.transfer(address(srcClone), MAKING_AMOUNT);
+
+        (IEscrowDst.ImmutablesDst memory immutablesDst,,) = _prepareDataDstCustom(
+            HASHED_SECRET, 
+            TAKING_AMOUNT, 
+            alice.addr, 
+            taker,
+            address(dai), 
+            DST_SAFETY_DEPOSIT, 
+            PROTOCOL_FEE, 
+            INTEGRATOR_FEE,
+            INTEGRATOR_SHARES,
+            WHITELIST_PROTOCOL_FEE_DISCOUNT,
+            ESTIMATED_TAKING_AMOUNT,
+            PROTOCOL_SURPLUS_FEE,
+            false
+        );
+
+        IEscrowFactory.DstImmutablesComplement memory immutablesComplement = IEscrowFactory.DstImmutablesComplement({
+            maker: Address.wrap(uint160(receiver)),
+            amount: TAKING_AMOUNT,
+            token: Address.wrap(uint160(address(dai))),
+            safetyDeposit: DST_SAFETY_DEPOSIT,
+            chainId: block.chainid,
+            protocolFeeRecipient: immutablesDst.protocolFeeRecipient,
+            integratorFeeRecipient: immutablesDst.integratorFeeRecipient,
+            protocolFeeAmount: immutablesDst.protocolFeeAmount,
+            integratorFeeAmount: immutablesDst.integratorFeeAmount
+        });
+
+        vm.prank(address(limitOrderProtocol));
+        vm.expectEmit();
+        emit IEscrowFactory.SrcEscrowCreated(swapData.immutables, immutablesComplement);
+        escrowFactory.postInteraction(
+            swapData.order,
+            "", // extension
+            swapData.orderHash,
+            taker, // taker
+            MAKING_AMOUNT,
+            TAKING_AMOUNT,
+            0, // remainingMakingAmount
+            swapData.extraData
+        );
+
+        assertEq(usdc.balanceOf(address(srcClone)), MAKING_AMOUNT);
+        assertEq(address(srcClone).balance, SRC_SAFETY_DEPOSIT);
+    }
+
     function testFuzz_DeployCloneForTaker(bytes32 secret, uint56 amount) public {
         uint256 safetyDeposit = uint64(amount) * 10 / 100;
-        (IBaseEscrow.Immutables memory immutables, uint256 srcCancellationTimestamp, EscrowDst dstClone) = _prepareDataDstCustom(
-            secret, amount, alice.addr, bob.addr, address(dai), safetyDeposit
+        (IEscrowDst.ImmutablesDst memory immutables, uint256 srcCancellationTimestamp, EscrowDst dstClone) = _prepareDataDstCustom(
+            secret, 
+            amount, 
+            alice.addr, 
+            bob.addr, 
+            address(dai), 
+            safetyDeposit,             
+            PROTOCOL_FEE, 
+            INTEGRATOR_FEE, 
+            INTEGRATOR_SHARES,
+            WHITELIST_PROTOCOL_FEE_DISCOUNT,
+            amount,
+            PROTOCOL_SURPLUS_FEE,
+            true
         );
         uint256 balanceBobNative = bob.addr.balance;
         uint256 balanceBob = dai.balanceOf(bob.addr);
@@ -184,10 +284,6 @@ contract EscrowFactoryTest is BaseSetup {
         usdc.transfer(address(swapData.srcClone), MAKING_AMOUNT);
 
         inch.mint(alice.addr, 10 ether);
-        vm.prank(alice.addr);
-        inch.approve(address(feeBank), 10 ether);
-        vm.prank(alice.addr);
-        feeBank.deposit(10 ether);
 
         vm.prank(address(limitOrderProtocol));
         vm.expectRevert(FeeTaker.OnlyWhitelistOrAccessToken.selector);
@@ -204,7 +300,7 @@ contract EscrowFactoryTest is BaseSetup {
     }
 
     function test_NoUnsafeDeploymentForTaker() public {
-        (IBaseEscrow.Immutables memory immutables, uint256 srcCancellationTimestamp,) = _prepareDataDst();
+        (IEscrowDst.ImmutablesDst memory immutables, uint256 srcCancellationTimestamp,) = _prepareDataDst();
 
         vm.warp(srcCancellationTimestamp + 1);
 
@@ -215,7 +311,7 @@ contract EscrowFactoryTest is BaseSetup {
     }
 
     function test_NoInsufficientBalanceDeploymentForTaker() public {
-        (IBaseEscrow.Immutables memory immutables, uint256 srcCancellationTimestamp,) = _prepareDataDst();
+        (IEscrowDst.ImmutablesDst memory immutables, uint256 srcCancellationTimestamp,) = _prepareDataDst();
 
         // deploy escrow
         vm.prank(bob.addr);
@@ -224,8 +320,20 @@ contract EscrowFactoryTest is BaseSetup {
     }
 
     function test_NoInsufficientBalanceNativeDeploymentForTaker() public {
-        (IBaseEscrow.Immutables memory immutables, uint256 srcCancellationTimestamp,) = _prepareDataDstCustom(
-            HASHED_SECRET, TAKING_AMOUNT, alice.addr, bob.addr, address(0x00), DST_SAFETY_DEPOSIT
+        (IEscrowDst.ImmutablesDst memory immutables, uint256 srcCancellationTimestamp,) = _prepareDataDstCustom(
+            HASHED_SECRET, 
+            TAKING_AMOUNT, 
+            alice.addr, 
+            bob.addr, 
+            address(0x00), 
+            DST_SAFETY_DEPOSIT,
+            PROTOCOL_FEE, 
+            INTEGRATOR_FEE, 
+            INTEGRATOR_SHARES,
+            WHITELIST_PROTOCOL_FEE_DISCOUNT,
+            ESTIMATED_TAKING_AMOUNT,
+            PROTOCOL_SURPLUS_FEE,
+            true
         );
 
         // deploy escrow
@@ -282,6 +390,147 @@ contract EscrowFactoryTest is BaseSetup {
             MAKING_AMOUNT, // remainingMakingAmount
             swapData.extraData
         );
+    }
+
+    function test_RescueFundsNative() public {
+        uint256 amount = 1 ether;
+        (bool success, ) = address(escrowFactory).call{value: amount}("");
+        assertEq(success, true);
+        assertEq(address(escrowFactory).balance, amount);
+
+        uint256 charlieBalance = charlie.addr.balance; 
+
+        vm.prank(charlie.addr);
+        escrowFactory.rescueFunds(IERC20(address(0)), amount);
+
+        assertEq(charlie.addr.balance - charlieBalance, amount);
+    }
+
+    function test_NoRescueFundsNativeNotOwner() public {
+        uint256 amount = 1 ether;
+        (bool success, ) = address(escrowFactory).call{value: amount}("");
+        assertEq(success, true);
+        assertEq(address(escrowFactory).balance, amount);
+
+        uint256 bobBalance = bob.addr.balance; 
+
+        vm.prank(bob.addr);
+        vm.expectRevert(
+            abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, bob.addr)
+        );
+        escrowFactory.rescueFunds(IERC20(address(0)), amount);
+
+        assertEq(bob.addr.balance, bobBalance);
+    }
+
+    function test_RescueFundsERC20() public {
+        uint256 amount = 1 ether;
+        dai.mint(bob.addr, amount);
+
+        vm.prank(bob.addr);
+        dai.transfer(address(escrowFactory), amount);
+        assertEq(dai.balanceOf(address(escrowFactory)), amount);
+
+        uint256 charlieBalance = dai.balanceOf(charlie.addr); 
+
+        vm.prank(charlie.addr);
+        escrowFactory.rescueFunds(IERC20(address(dai)), amount);
+
+        assertEq(dai.balanceOf(charlie.addr) - charlieBalance, amount);
+    }
+
+    function test_NoRescueFundsERC20NotOwner() public {
+        uint256 amount = 1 ether;
+        dai.mint(bob.addr, amount);
+
+        vm.prank(bob.addr);
+        dai.transfer(address(escrowFactory), amount);
+        assertEq(dai.balanceOf(address(escrowFactory)), amount);
+
+        uint256 bobBalance = dai.balanceOf(bob.addr); 
+
+        vm.prank(bob.addr);
+        vm.expectRevert(
+            abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, bob.addr)
+        );
+        escrowFactory.rescueFunds(IERC20(address(dai)), amount);
+
+        assertEq(dai.balanceOf(bob.addr), bobBalance);
+    }
+
+    function testFuzz_DeployWithFullFeesWithSurplus() public {
+        uint256 estimatedTakingAmount = TAKING_AMOUNT + 0.1 ether;
+        uint256 protocolSurplusFee = BASE_1E2;
+
+        address receiver = charlie.addr;
+        CrossChainTestLib.SwapData memory swapData = _prepareDataSrcCustom(
+            HASHED_SECRET,
+            MAKING_AMOUNT,
+            TAKING_AMOUNT,
+            SRC_SAFETY_DEPOSIT,
+            DST_SAFETY_DEPOSIT,
+            receiver,
+            true,
+            false,
+            "",
+            TAKING_AMOUNT,
+            protocolSurplusFee
+        );
+
+        address taker = mary.addr;
+        accessToken.mint(taker, 1);
+
+        swapData.immutables.taker = Address.wrap(uint160(taker));
+        EscrowSrc srcClone = EscrowSrc(BaseEscrowFactory(payable(address(escrowFactory))).addressOfEscrowSrc(swapData.immutables));
+
+        (bool success,) = address(srcClone).call{ value: SRC_SAFETY_DEPOSIT }("");
+        assertEq(success, true);
+        usdc.transfer(address(srcClone), MAKING_AMOUNT);
+
+        (IEscrowDst.ImmutablesDst memory immutablesDst,,) = _prepareDataDstCustom(
+            HASHED_SECRET, 
+            estimatedTakingAmount, 
+            alice.addr, 
+            taker,
+            address(dai), 
+            DST_SAFETY_DEPOSIT, 
+            PROTOCOL_FEE, 
+            INTEGRATOR_FEE,
+            INTEGRATOR_SHARES,
+            WHITELIST_PROTOCOL_FEE_DISCOUNT,
+            TAKING_AMOUNT,
+            protocolSurplusFee,
+            false
+        );
+
+        IEscrowFactory.DstImmutablesComplement memory immutablesComplement = IEscrowFactory.DstImmutablesComplement({
+            maker: Address.wrap(uint160(receiver)),
+            amount: estimatedTakingAmount,
+            token: Address.wrap(uint160(address(dai))),
+            safetyDeposit: DST_SAFETY_DEPOSIT,
+            chainId: block.chainid,
+            protocolFeeRecipient: immutablesDst.protocolFeeRecipient,
+            integratorFeeRecipient: immutablesDst.integratorFeeRecipient,
+            protocolFeeAmount: immutablesDst.protocolFeeAmount,
+            integratorFeeAmount: immutablesDst.integratorFeeAmount
+        });
+
+        vm.prank(address(limitOrderProtocol));
+        vm.expectEmit();
+        emit IEscrowFactory.SrcEscrowCreated(swapData.immutables, immutablesComplement);
+        escrowFactory.postInteraction(
+            swapData.order,
+            "", // extension
+            swapData.orderHash,
+            taker, // taker
+            MAKING_AMOUNT,
+            estimatedTakingAmount,
+            0, // remainingMakingAmount
+            swapData.extraData
+        );
+
+        assertEq(usdc.balanceOf(address(srcClone)), MAKING_AMOUNT);
+        assertEq(address(srcClone).balance, SRC_SAFETY_DEPOSIT);
     }
 
     /* solhint-enable func-name-mixedcase */

@@ -23,10 +23,6 @@ contract IntegrationResolverMockTest is BaseSetup {
         dai.mint(resolverMock, 1000 ether);
         inch.mint(resolverMock, 1000 ether);
         accessToken.mint(resolverMock, 1);
-        vm.startPrank(resolverMock);
-        inch.approve(address(feeBank), 1000 ether);
-        feeBank.deposit(10 ether);
-        vm.stopPrank();
     }
 
     /* solhint-disable func-name-mixedcase */
@@ -285,7 +281,7 @@ contract IntegrationResolverMockTest is BaseSetup {
     }
 
     function test_MockDeployDst() public {
-        (IBaseEscrow.Immutables memory immutables,
+        (IEscrowDst.ImmutablesDst memory immutables,
         uint256 srcCancellationTimestamp,
         IBaseEscrow dstClone
         ) = _prepareDataDst();
@@ -307,9 +303,9 @@ contract IntegrationResolverMockTest is BaseSetup {
     }
 
     function test_MockWithdrawDst() public {
-        (IBaseEscrow.Immutables memory immutables,
+        (IEscrowDst.ImmutablesDst memory immutables,
         uint256 srcCancellationTimestamp,
-        IBaseEscrow dstClone
+        IEscrowDst dstClone
         ) = _prepareDataDst();
 
         address[] memory targets = new address[](1);
@@ -338,7 +334,9 @@ contract IntegrationResolverMockTest is BaseSetup {
         skip(dstTimelocks.withdrawal + 10);
         IResolverExample(resolverMock).arbitraryCalls(targets, arguments);
 
-        assertEq(dai.balanceOf(alice.addr), aliceBalance + TAKING_AMOUNT);
+        assertEq(dai.balanceOf(alice.addr), aliceBalance + TAKING_AMOUNT - FEES_AMOUNT);
+        assertEq(dai.balanceOf(protocolFeeReceiver), PROTOCOL_FEE_AMOUNT);
+        assertEq(dai.balanceOf(integratorFeeReceiver), FEES_AMOUNT - PROTOCOL_FEE_AMOUNT);
         assertEq(resolverMock.balance, resolverBalanceNative + DST_SAFETY_DEPOSIT);
         assertEq(dai.balanceOf(address(dstClone)), 0);
         assertEq(address(dstClone).balance, 0);
@@ -346,7 +344,7 @@ contract IntegrationResolverMockTest is BaseSetup {
 
     function test_MockPublicWithdrawDst() public {
         resolvers[0] = bob.addr;
-        (IBaseEscrow.Immutables memory immutables,
+        (IEscrowDst.ImmutablesDst memory immutables,
         uint256 srcCancellationTimestamp,
         IEscrowDst dstClone
         ) = _prepareDataDst();
@@ -375,16 +373,18 @@ contract IntegrationResolverMockTest is BaseSetup {
         // Now resolver mock is able to withdraw tokens
         IResolverExample(resolverMock).arbitraryCalls(targets, arguments);
 
-        assertEq(dai.balanceOf(alice.addr), aliceBalance + TAKING_AMOUNT);
+        assertEq(dai.balanceOf(alice.addr), aliceBalance + TAKING_AMOUNT - FEES_AMOUNT);
+        assertEq(dai.balanceOf(protocolFeeReceiver), PROTOCOL_FEE_AMOUNT);
+        assertEq(dai.balanceOf(integratorFeeReceiver), FEES_AMOUNT - PROTOCOL_FEE_AMOUNT);
         assertEq(resolverMock.balance, resolverBalanceNative + DST_SAFETY_DEPOSIT);
         assertEq(dai.balanceOf(address(dstClone)), 0);
         assertEq(address(dstClone).balance, 0);
     }
 
     function test_MockCancelDst() public {
-        (IBaseEscrow.Immutables memory immutables,
+        (IEscrowDst.ImmutablesDst memory immutables,
         uint256 srcCancellationTimestamp,
-        IBaseEscrow dstClone
+        IEscrowDst dstClone
         ) = _prepareDataDst();
 
         address[] memory targets = new address[](1);
@@ -420,9 +420,9 @@ contract IntegrationResolverMockTest is BaseSetup {
     }
 
     function test_MockRescueFundsDst() public {
-        (IBaseEscrow.Immutables memory immutables,
+        (IEscrowDst.ImmutablesDst memory immutables,
         uint256 srcCancellationTimestamp,
-        IBaseEscrow dstClone
+        IEscrowDst dstClone
         ) = _prepareDataDst();
 
         address[] memory targets = new address[](1);

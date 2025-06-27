@@ -5,6 +5,7 @@ pragma solidity 0.8.23;
 import { BaseEscrowFactory } from "../../../contracts/BaseEscrowFactory.sol";
 import { EscrowSrc } from "../../../contracts/EscrowSrc.sol";
 import { IBaseEscrow } from "../../../contracts/interfaces/IBaseEscrow.sol";
+import { IEscrowDst } from "../../../contracts/interfaces/IEscrowDst.sol";
 import { ERC20True } from "../../../contracts/mocks/ERC20True.sol";
 import { IOrderMixin } from "limit-order-protocol/contracts/interfaces/IOrderMixin.sol";
 import { MakerTraits } from "limit-order-protocol/contracts/libraries/MakerTraitsLib.sol";
@@ -74,6 +75,15 @@ library CrossChainTestLib {
         address[] resolvers;
         uint32 resolverFee;
         bytes auctionDetails;
+        address protocolFeeRecipient;
+        address integratorFeeRecipient;
+        uint16 protocolFee;
+        uint16 integratorFee;
+        uint8 integratorShare;
+        uint8 whitelistDiscountNumerator;
+        bytes customDataForPostInteraction;
+        uint256 expectedTakingAmount;
+        uint8 protocolSurplusFee;
     }
 
     struct EscrowDetails {
@@ -147,6 +157,13 @@ library CrossChainTestLib {
         uint24 initialRateBump,
         bytes memory auctionPoints
     ) internal pure returns (bytes memory auctionDetails) {
+       /*     bytes3 gasBumpEstimate;
+        *     bytes4 gasPriceEstimate;
+        *     bytes4 auctionStartTime;
+        *     bytes3 auctionDuration;
+        *     bytes3 initialRateBump;
+        *     (bytes3,bytes2)[N] pointsAndTimeDeltas;
+        */
         auctionDetails = abi.encodePacked(
             gasBumpEstimate,
             gasPriceEstimate,
@@ -319,7 +336,10 @@ library CrossChainTestLib {
             escrowDetails.timelocks
         );
 
-        bytes memory whitelist = abi.encodePacked(uint32(block.timestamp)); // auction start time
+        bytes memory whitelist = abi.encodePacked(
+            uint32(block.timestamp), // auction start time
+            bytes1(uint8(orderDetails.resolvers.length))
+        ); 
         for (uint256 i = 0; i < orderDetails.resolvers.length; i++) {
             whitelist = abi.encodePacked(whitelist, uint80(uint160(orderDetails.resolvers[i])), uint16(0)); // resolver address, time delta
         }
@@ -338,13 +358,37 @@ library CrossChainTestLib {
         } else {
             bytes memory postInteractionData = abi.encodePacked(
                 factory,
-                orderDetails.resolverFee,
-                whitelist,
-                bytes1(0x08) | bytes1(0x01), // 0x08 - whitelist length = 1, 0x01 - turn on resolver fee
+                bytes1(0x0), // custom receiver flag
+                bytes20(address(orderDetails.integratorFeeRecipient)), // integrator fee recipient
+                bytes20(address(orderDetails.protocolFeeRecipient)), // protocol fee recipient
+                bytes2(orderDetails.integratorFee),  // integrator fee percentage (in 1e5)
+                bytes1(orderDetails.integratorShare), // integrator rev share percentage (in 1e2)
+                bytes2(orderDetails.protocolFee), // resolver fee percentage (in 1e5)
+                bytes1(orderDetails.whitelistDiscountNumerator), // whitelist discount numerator (in 1e2)
+                whitelist,  // struct (4 bytes | 1 byte | (bytes12)[N] )
+                bytes32(orderDetails.expectedTakingAmount),
+                bytes1(orderDetails.protocolSurplusFee),
+                orderDetails.customDataForPostInteraction,
                 swapData.extraData
             );
 
-            bytes memory gettersAmountData = abi.encodePacked(factory, orderDetails.auctionDetails);
+            // structure of whitelist for gettersAmountData is different than for postInteractionData
+            bytes memory whitelist1 = abi.encodePacked(
+                bytes1(uint8(orderDetails.resolvers.length))
+            ); 
+            for (uint256 i = 0; i < orderDetails.resolvers.length; i++) {
+                whitelist1 = abi.encodePacked(whitelist1, uint80(uint160(orderDetails.resolvers[i]))); // resolver address, time delta
+            }
+
+            bytes memory gettersAmountData = abi.encodePacked(
+                factory, 
+                orderDetails.auctionDetails,
+                bytes2(0x0), // integrator fee percentage (in 1e5)
+                bytes1(0x64), // integrator rev share percentage (in 1e2)
+                bytes2(0x0), // resolver fee percentage (in 1e5)
+                bytes1(0x64), // whitelist discount numerator (in 1e2)
+                whitelist1 // struct (1 byte | (bytes10)[N] )
+            );
 
             (swapData.order, swapData.extension) = buildOrder(
                 orderDetails.maker,
@@ -374,9 +418,39 @@ library CrossChainTestLib {
             timelocks: escrowDetails.timelocks
         });
 
+       /*
+        * 1 byte - flags
+        * 20 bytes — integrator fee recipient
+        * 20 bytes - protocol fee recipient
+        * Fee structure determined by `super._getFeeAmounts`:
+        *      2 bytes — integrator fee percentage (in 1e5)
+        *      1 byte - integrator rev share percentage (in 1e2)
+        *      2 bytes — resolver fee percentage (in 1e5)
+        *      1 byte - whitelist discount numerator (in 1e2)
+        * Whitelist structure:     
+        *      4 bytes - allowed time
+        *      1 byte - size of the whitelist
+        *      (bytes12)[N] — taker whitelist
+        * Surpluses fee structure:
+        *      32 bytes - estimated taking amount
+        *      1 byte - protocol surplus fee (in 1e2)
+        * bytes — custom data to call extra postInteraction (optional)
+        */
         swapData.srcClone = EscrowSrc(BaseEscrowFactory(payable(factory)).addressOfEscrowSrc(swapData.immutables));
-        // 0x08 - whitelist length = 1, 0x01 - turn on resolver fee
-        swapData.extraData = abi.encodePacked(orderDetails.resolverFee, whitelist, bytes1(0x08) | bytes1(0x01), swapData.extraData);
+        swapData.extraData = abi.encodePacked(
+            bytes1(0x0),
+            bytes20(address(orderDetails.integratorFeeRecipient)),
+            bytes20(address(orderDetails.protocolFeeRecipient)),
+            bytes2(orderDetails.integratorFee),
+            bytes1(orderDetails.integratorShare),
+            bytes2(orderDetails.protocolFee),
+            bytes1(orderDetails.whitelistDiscountNumerator),
+            whitelist, 
+            bytes32(orderDetails.expectedTakingAmount),
+            bytes1(orderDetails.protocolSurplusFee),
+            orderDetails.customDataForPostInteraction,
+            swapData.extraData
+        );
     }
 
     function buildDstEscrowImmutables(
@@ -387,9 +461,13 @@ library CrossChainTestLib {
         address taker,
         address token,
         uint256 safetyDeposit,
-        Timelocks timelocks
-    ) internal pure returns (IBaseEscrow.Immutables memory immutables) {
-        immutables = IBaseEscrow.Immutables({
+        Timelocks timelocks,
+        address protocolFeeRecipient,
+        address integratorFeeRecipient,
+        uint256 protocolFeeAmount,
+        uint256 integratorFeeAmount
+    ) internal pure returns (IEscrowDst.ImmutablesDst memory immutables) {
+        immutables = IEscrowDst.ImmutablesDst({
             orderHash: orderHash,
             hashlock: hashlock,
             maker: Address.wrap(uint160(maker)),
@@ -397,7 +475,11 @@ library CrossChainTestLib {
             token: Address.wrap(uint160(token)),
             amount: amount,
             safetyDeposit: safetyDeposit,
-            timelocks: timelocks
+            timelocks: timelocks,
+            protocolFeeRecipient: Address.wrap(uint160(protocolFeeRecipient)),
+            integratorFeeRecipient: Address.wrap(uint160(integratorFeeRecipient)),
+            protocolFeeAmount: protocolFeeAmount,
+            integratorFeeAmount: integratorFeeAmount
         });
     }
 }

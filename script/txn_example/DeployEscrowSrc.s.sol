@@ -20,8 +20,13 @@ contract DeployEscrowSrc is Script {
         IResolverExample resolver = IResolverExample(vm.envAddress("RESOLVER"));
         address escrowFactory = vm.envAddress("ESCROW_FACTORY");
         IOrderMixin limitOrderProtocol = IOrderMixin(vm.envAddress("LOP"));
-
         address srcToken = vm.envAddress("TOKEN_SRC");
+        address protocolFeeRecipient = vm.envAddress("PROTOCOL_FEE_RECIPIENT");
+        address integratorFeeRecipient = vm.envAddress("INTEGRATOR_FEE_RECIPIENT");
+        uint256 protocolFee = vm.envUint("PROTOCOL_FEE");
+        uint256 integratorFee = vm.envUint("INTEGRATOR_FEE");
+        uint256 integratorShare = vm.envUint("INTEGRATOR_SHARE");
+        uint256 whitelistDiscountNumerator = vm.envUint("WHITELIST_DISCOUNT");
 
         // Prepare data to deploy EscrowSrc
         address maker = deployer;
@@ -36,7 +41,7 @@ contract DeployEscrowSrc is Script {
             withdrawal: 300, // 5min finality lock
             publicWithdrawal: 600, // 5m for private withdrawal
             cancellation: 900, // 5m for public withdrawal
-            publicCancellation: 1200 // 5m for private cancellation
+            publicCancellation: 1200 // 5m for private cancellation 
         });
         CrossChainTestLib.DstTimelocks memory dstTimelocks = CrossChainTestLib.DstTimelocks({
             withdrawal: 300, // 5min finality lock for test
@@ -76,7 +81,16 @@ contract DeployEscrowSrc is Script {
                     0, // delay
                     0, // initialRateBump
                     "" // auctionPoints
-                )
+                ),
+                protocolFeeRecipient: protocolFeeRecipient,
+                integratorFeeRecipient: integratorFeeRecipient,
+                protocolFee: uint16(protocolFee),
+                integratorFee: uint16(integratorFee),
+                integratorShare: uint8(integratorShare),
+                whitelistDiscountNumerator: uint8(whitelistDiscountNumerator),
+                customDataForPostInteraction: "",
+                expectedTakingAmount: dstAmount,
+                protocolSurplusFee: 0
             }),
             CrossChainTestLib.EscrowDetails({
                 hashlock: hashlock,
@@ -101,7 +115,7 @@ contract DeployEscrowSrc is Script {
             "", // interaction
             0 // threshold
         );
-
+        
         vm.startBroadcast(deployerPK);
         IERC20(srcToken).approve(address(limitOrderProtocol), srcAmount);
         resolver.deploySrc(

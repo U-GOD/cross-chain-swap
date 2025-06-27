@@ -7,6 +7,7 @@ import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { Timelocks } from "../libraries/TimelocksLib.sol";
 
 import { IBaseEscrow } from "./IBaseEscrow.sol";
+import { IEscrowDst } from "./IEscrowDst.sol";
 
 /**
  * @title Escrow Factory interface for cross-chain atomic swap.
@@ -26,8 +27,12 @@ interface IEscrowFactory {
         Address maker;
         uint256 amount;
         Address token;
+        Address protocolFeeRecipient;
+        Address integratorFeeRecipient;
         uint256 safetyDeposit;
         uint256 chainId;
+        uint256 integratorFeeAmount;
+        uint256 protocolFeeAmount;
     }
 
     error InsufficientEscrowBalance();
@@ -63,7 +68,7 @@ interface IEscrowFactory {
      * @param dstImmutables The immutables of the escrow contract that are used in deployment.
      * @param srcCancellationTimestamp The start of the cancellation period for the source chain.
      */
-    function createDstEscrow(IBaseEscrow.Immutables calldata dstImmutables, uint256 srcCancellationTimestamp) external payable;
+    function createDstEscrow(IEscrowDst.ImmutablesDst calldata dstImmutables, uint256 srcCancellationTimestamp) external payable;
 
     /**
      * @notice Returns the deterministic address of the source escrow based on the salt.
@@ -74,8 +79,8 @@ interface IEscrowFactory {
 
     /**
      * @notice Returns the deterministic address of the destination escrow based on the salt.
-     * @param immutables The immutable arguments used to compute salt for escrow deployment.
+     * @param dstImmutables The immutable arguments used to compute salt for escrow deployment.
      * @return The computed address of the escrow.
      */
-    function addressOfEscrowDst(IBaseEscrow.Immutables calldata immutables) external view returns (address);
+    function addressOfEscrowDst(IEscrowDst.ImmutablesDst calldata dstImmutables) external view returns (address);
 }

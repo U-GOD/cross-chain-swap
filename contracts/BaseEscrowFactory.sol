@@ -4,11 +4,13 @@ pragma solidity 0.8.23;
 
 import { Clones } from "openzeppelin-contracts/contracts/proxy/Clones.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Create2 } from "openzeppelin-contracts/contracts/utils/Create2.sol";
 import { Address, AddressLib } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { SafeERC20 } from "solidity-utils/contracts/libraries/SafeERC20.sol";
 
 import { IOrderMixin } from "limit-order-protocol/contracts/interfaces/IOrderMixin.sol";
+import { IPostInteraction } from "limit-order-protocol/contracts/interfaces/IPostInteraction.sol";
 import { MakerTraitsLib } from "limit-order-protocol/contracts/libraries/MakerTraitsLib.sol";
 import { FeeTaker } from "limit-order-protocol/contracts/extensions/FeeTaker.sol";
 import { SimpleSettlement } from "limit-order-settlement/contracts/SimpleSettlement.sol";
@@ -18,6 +20,7 @@ import { Timelocks, TimelocksLib } from "./libraries/TimelocksLib.sol";
 
 import { IEscrowFactory } from "./interfaces/IEscrowFactory.sol";
 import { IBaseEscrow } from "./interfaces/IBaseEscrow.sol";
+import { IEscrowDst } from "./interfaces/IEscrowDst.sol";
 import { SRC_IMMUTABLES_LENGTH } from "./EscrowFactoryContext.sol";
 import { MerkleStorageInvalidator } from "./MerkleStorageInvalidator.sol";
 
@@ -31,8 +34,10 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
     using AddressLib for Address;
     using Clones for address;
     using ImmutablesLib for IBaseEscrow.Immutables;
+    using ImmutablesLib for IEscrowDst.ImmutablesDst;
     using SafeERC20 for IERC20;
     using TimelocksLib for Timelocks;
+    using Math for uint256;
 
     /// @notice See {IEscrowFactory-ESCROW_SRC_IMPLEMENTATION}.
     address public immutable ESCROW_SRC_IMPLEMENTATION;
@@ -47,11 +52,23 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
      * to a pre-computed deterministic address of the created escrow.
      * The external postInteraction function call will be made from the Limit Order Protocol
      * after all funds have been transferred. See {IPostInteraction-postInteraction}.
-     * `extraData` consists of:
-     *   - ExtraDataArgs struct
-     *   - whitelist
-     *   - 0 / 4 bytes for the fee
-     *   - 1 byte for the bitmap
+     * extraData consists:
+     * 1 byte - flags - will be skipped (for compatibility with Fusion)
+     * 20 bytes — integrator fee recipient
+     * 20 bytes - protocol fee recipient
+     * Fee structure determined by `super._getFeeAmounts`:
+     *      2 bytes — integrator fee percentage (in 1e5)
+     *      1 byte - integrator rev share percentage (in 1e2)
+     *      2 bytes — resolver fee percentage (in 1e5)
+     *      1 byte - whitelist discount numerator (in 1e2)
+     * Whitelist structure:     
+     *      4 bytes - allowed time
+     *      1 byte - size of the whitelist
+     *      (bytes12)[N] — taker whitelist
+     * Surpluses fee structure (for compatibility with Fusion):
+     *      32 bytes - estimated taking amount
+     *      1 byte - protocol surplus fee (in 1e2) (is equal 0)
+     * bytes — custom data to call extra postInteraction (optional)
      */
     function _postInteraction(
         IOrderMixin.Order calldata order,
@@ -63,10 +80,44 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
         uint256 remainingMakingAmount,
         bytes calldata extraData
     ) internal override(FeeTaker) {
+        // The first byte is reserved for the custom receiver flag as used in FeeTaker (Fusion).
+        // Although it's not needed here, we keep it for compatibility with Fusion's calldata structure.
+        // This byte will always be zero in our case and should be skipped during decoding.
+        address integratorFeeRecipient = address(bytes20(extraData[1:21]));
+        address protocolFeeRecipient = address(bytes20(extraData[21:41]));
+
+        // A custom receiver can be specified as an optional parameter in Fusion.
+        // It may occupy bytes [41..61) of the `extraData` field.
+        //
+        // If the first byte of `extraData` contains a specific flag,
+        // the custom receiver address is extracted and used.
+        //
+        // In the case of Fusion+, this flag is not set (i.e., extraData[0] == 0),
+        // so the custom receiver is omitted from calldata.
+        extraData = extraData[41:];
+
         uint256 superArgsLength = extraData.length - SRC_IMMUTABLES_LENGTH;
-        super._postInteraction(
-            order, extension, orderHash, taker, makingAmount, takingAmount, remainingMakingAmount, extraData[:superArgsLength]
+
+        (uint256 integratorFeeAmount, uint256 protocolFeeAmount, bytes calldata tail) = super._getFeeAmounts(
+            order, 
+            taker, 
+            takingAmount, 
+            makingAmount, 
+            extraData[:superArgsLength]
         );
+
+        if (tail.length > 19) {
+            IPostInteraction(address(bytes20(tail))).postInteraction(
+                order, 
+                extension, 
+                orderHash, 
+                taker, 
+                makingAmount, 
+                takingAmount, 
+                remainingMakingAmount, 
+                tail[20:]
+            );
+        }
 
         ExtraDataArgs calldata extraDataArgs;
         assembly ("memory-safe") {
@@ -104,7 +155,11 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
             amount: takingAmount,
             token: extraDataArgs.dstToken,
             safetyDeposit: extraDataArgs.deposits & type(uint128).max,
-            chainId: extraDataArgs.dstChainId
+            chainId: extraDataArgs.dstChainId,
+            protocolFeeAmount: protocolFeeAmount,
+            integratorFeeAmount: integratorFeeAmount,
+            protocolFeeRecipient: Address.wrap(uint160(protocolFeeRecipient)),
+            integratorFeeRecipient: Address.wrap(uint160(integratorFeeRecipient))
         });
 
         emit SrcEscrowCreated(immutables, immutablesComplement);
@@ -119,7 +174,7 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
     /**
      * @notice See {IEscrowFactory-createDstEscrow}.
      */
-    function createDstEscrow(IBaseEscrow.Immutables calldata dstImmutables, uint256 srcCancellationTimestamp) external payable {
+    function createDstEscrow(IEscrowDst.ImmutablesDst calldata dstImmutables, uint256 srcCancellationTimestamp) external payable {
         address token = dstImmutables.token.get();
         uint256 nativeAmount = dstImmutables.safetyDeposit;
         if (token == address(0)) {
@@ -127,7 +182,7 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
         }
         if (msg.value != nativeAmount) revert InsufficientEscrowBalance();
 
-        IBaseEscrow.Immutables memory immutables = dstImmutables;
+        IEscrowDst.ImmutablesDst memory immutables = dstImmutables;
         immutables.timelocks = immutables.timelocks.setDeployedAt(block.timestamp);
         // Check that the escrow cancellation will start not later than the cancellation time on the source chain.
         if (immutables.timelocks.get(TimelocksLib.Stage.DstCancellation) > srcCancellationTimestamp) revert InvalidCreationTime();
@@ -151,7 +206,7 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
     /**
      * @notice See {IEscrowFactory-addressOfEscrowDst}.
      */
-    function addressOfEscrowDst(IBaseEscrow.Immutables calldata immutables) external view virtual returns (address) {
+    function addressOfEscrowDst(IEscrowDst.ImmutablesDst calldata immutables) external view virtual returns (address) {
         return Create2.computeAddress(immutables.hash(), _PROXY_DST_BYTECODE_HASH);
     }
 
