@@ -18,6 +18,7 @@ import { TakerTraits } from "limit-order-protocol/contracts/libraries/TakerTrait
 import { RevertReasonForwarder } from "solidity-utils/contracts/libraries/RevertReasonForwarder.sol";
 
 import { IBaseEscrow } from "../interfaces/IBaseEscrow.sol";
+import { IEscrowSrc } from "../interfaces/IEscrowSrc.sol";
 import { IEscrowDst } from "../interfaces/IEscrowDst.sol";
 import { IEscrowFactory } from "../interfaces/IEscrowFactory.sol";
 import { IResolverExample } from "../interfaces/IResolverExample.sol";
@@ -46,7 +47,7 @@ contract ResolverExample is IResolverExample, Ownable {
      * @notice See {IResolverExample-deploySrc}.
      */
     function deploySrc(
-        IBaseEscrow.Immutables calldata immutables,
+        IEscrowSrc.Immutables calldata immutables,
         IOrderMixin.Order calldata order,
         bytes32 r,
         bytes32 vs,
@@ -54,7 +55,7 @@ contract ResolverExample is IResolverExample, Ownable {
         TakerTraits takerTraits,
         bytes calldata args
     ) external onlyOwner {
-        IBaseEscrow.Immutables memory immutablesMem = immutables;
+        IEscrowSrc.Immutables memory immutablesMem = immutables;
         immutablesMem.timelocks = TimelocksLib.setDeployedAt(immutables.timelocks, block.timestamp);
         address computed = _FACTORY.addressOfEscrowSrc(immutablesMem);
         (bool success,) = address(computed).call{ value: immutablesMem.safetyDeposit }("");
@@ -69,8 +70,8 @@ contract ResolverExample is IResolverExample, Ownable {
     /**
      * @notice See {IResolverExample-deployDst}.
      */
-    function deployDst(IEscrowDst.ImmutablesDst calldata dstImmutables, uint256 srcCancellationTimestamp) external onlyOwner payable {
-        _FACTORY.createDstEscrow{ value: msg.value }(dstImmutables, srcCancellationTimestamp);
+    function deployDst(IEscrowDst.ImmutablesDst calldata immutables, uint256 srcCancellationTimestamp) external onlyOwner payable {
+        _FACTORY.createDstEscrow{ value: msg.value }(immutables, srcCancellationTimestamp);
     }
 
     /**

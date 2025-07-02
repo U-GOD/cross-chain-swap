@@ -22,13 +22,12 @@ import { MerkleStorageInvalidator } from "./MerkleStorageInvalidator.sol";
 contract EscrowFactory is BaseEscrowFactory {
     constructor(
         address limitOrderProtocol,
-        address weth,
         IERC20 accessToken,
         address owner,
         uint32 rescueDelaySrc,
         uint32 rescueDelayDst
     )
-    SimpleSettlement(limitOrderProtocol, accessToken, weth, owner)
+    SimpleSettlement(limitOrderProtocol, accessToken, address(0), owner)
     MerkleStorageInvalidator(limitOrderProtocol) {
         ESCROW_SRC_IMPLEMENTATION = address(new EscrowSrc(rescueDelaySrc, accessToken));
         ESCROW_DST_IMPLEMENTATION = address(new EscrowDst(rescueDelayDst, accessToken));

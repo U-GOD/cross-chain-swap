@@ -6,7 +6,6 @@ import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol"
 import { AddressLib, Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { SafeERC20 } from "solidity-utils/contracts/libraries/SafeERC20.sol";
 
-import { ImmutablesLib } from "./libraries/ImmutablesLib.sol";
 import { Timelocks, TimelocksLib } from "./libraries/TimelocksLib.sol";
 
 import { IBaseEscrow } from "./interfaces/IBaseEscrow.sol";
@@ -20,7 +19,6 @@ abstract contract BaseEscrow is IBaseEscrow {
     using AddressLib for Address;
     using SafeERC20 for IERC20;
     using TimelocksLib for Timelocks;
-    using ImmutablesLib for Immutables;
 
     // Token that is used to access public withdraw or cancel functions.
     IERC20 private immutable _ACCESS_TOKEN;
@@ -35,8 +33,8 @@ abstract contract BaseEscrow is IBaseEscrow {
         _ACCESS_TOKEN = accessToken;
     }
 
-    modifier onlyTaker(Immutables calldata immutables) {
-        if (msg.sender != immutables.taker.get()) revert InvalidCaller();
+    modifier onlyTaker(Address taker) {
+        if (msg.sender != taker.get()) revert InvalidCaller();
         _;
     }
 
@@ -45,8 +43,8 @@ abstract contract BaseEscrow is IBaseEscrow {
         _;
     }
 
-    modifier onlyValidSecret(bytes32 secret, Immutables calldata immutables) {
-        if (_keccakBytes32(secret) != immutables.hashlock) revert InvalidSecret();
+    modifier onlyValidSecret(bytes32 secret, bytes32 hashlock) {
+        if (_keccakBytes32(secret) != hashlock) revert InvalidSecret();
         _;
     }
 

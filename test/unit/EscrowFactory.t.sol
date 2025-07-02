@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import { Ownable } from "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { Merkle } from "murky/src/Merkle.sol";
@@ -53,9 +53,7 @@ contract EscrowFactoryTest is BaseSetup {
             address(0),
             true, // fakeOrder
             false, // allowMultipleFills,
-            "",
-            dstAmount,
-            PROTOCOL_SURPLUS_FEE
+            ""
         );
 
         (bool success,) = address(swapData.srcClone).call{ value: srcSafetyDeposit }("");
@@ -89,9 +87,7 @@ contract EscrowFactoryTest is BaseSetup {
             receiver,
             true,
             false,
-            "",
-            TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE
+            ""
         );
 
         (bool success,) = address(swapData.srcClone).call{ value: SRC_SAFETY_DEPOSIT }("");
@@ -141,9 +137,7 @@ contract EscrowFactoryTest is BaseSetup {
             receiver,
             true,
             false,
-            "",
-            TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE
+            ""
         );
 
         address taker = mary.addr;
@@ -167,8 +161,6 @@ contract EscrowFactoryTest is BaseSetup {
             INTEGRATOR_FEE,
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE,
             false
         );
 
@@ -215,8 +207,6 @@ contract EscrowFactoryTest is BaseSetup {
             INTEGRATOR_FEE, 
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
-            amount,
-            PROTOCOL_SURPLUS_FEE,
             true
         );
         uint256 balanceBobNative = bob.addr.balance;
@@ -331,8 +321,6 @@ contract EscrowFactoryTest is BaseSetup {
             INTEGRATOR_FEE, 
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE,
             true
         );
 
@@ -456,81 +444,6 @@ contract EscrowFactoryTest is BaseSetup {
         escrowFactory.rescueFunds(IERC20(address(dai)), amount);
 
         assertEq(dai.balanceOf(bob.addr), bobBalance);
-    }
-
-    function testFuzz_DeployWithFullFeesWithSurplus() public {
-        uint256 estimatedTakingAmount = TAKING_AMOUNT + 0.1 ether;
-        uint256 protocolSurplusFee = BASE_1E2;
-
-        address receiver = charlie.addr;
-        CrossChainTestLib.SwapData memory swapData = _prepareDataSrcCustom(
-            HASHED_SECRET,
-            MAKING_AMOUNT,
-            TAKING_AMOUNT,
-            SRC_SAFETY_DEPOSIT,
-            DST_SAFETY_DEPOSIT,
-            receiver,
-            true,
-            false,
-            "",
-            TAKING_AMOUNT,
-            protocolSurplusFee
-        );
-
-        address taker = mary.addr;
-        accessToken.mint(taker, 1);
-
-        swapData.immutables.taker = Address.wrap(uint160(taker));
-        EscrowSrc srcClone = EscrowSrc(BaseEscrowFactory(payable(address(escrowFactory))).addressOfEscrowSrc(swapData.immutables));
-
-        (bool success,) = address(srcClone).call{ value: SRC_SAFETY_DEPOSIT }("");
-        assertEq(success, true);
-        usdc.transfer(address(srcClone), MAKING_AMOUNT);
-
-        (IEscrowDst.ImmutablesDst memory immutablesDst,,) = _prepareDataDstCustom(
-            HASHED_SECRET, 
-            estimatedTakingAmount, 
-            alice.addr, 
-            taker,
-            address(dai), 
-            DST_SAFETY_DEPOSIT, 
-            PROTOCOL_FEE, 
-            INTEGRATOR_FEE,
-            INTEGRATOR_SHARES,
-            WHITELIST_PROTOCOL_FEE_DISCOUNT,
-            TAKING_AMOUNT,
-            protocolSurplusFee,
-            false
-        );
-
-        IEscrowFactory.DstImmutablesComplement memory immutablesComplement = IEscrowFactory.DstImmutablesComplement({
-            maker: Address.wrap(uint160(receiver)),
-            amount: estimatedTakingAmount,
-            token: Address.wrap(uint160(address(dai))),
-            safetyDeposit: DST_SAFETY_DEPOSIT,
-            chainId: block.chainid,
-            protocolFeeRecipient: immutablesDst.protocolFeeRecipient,
-            integratorFeeRecipient: immutablesDst.integratorFeeRecipient,
-            protocolFeeAmount: immutablesDst.protocolFeeAmount,
-            integratorFeeAmount: immutablesDst.integratorFeeAmount
-        });
-
-        vm.prank(address(limitOrderProtocol));
-        vm.expectEmit();
-        emit IEscrowFactory.SrcEscrowCreated(swapData.immutables, immutablesComplement);
-        escrowFactory.postInteraction(
-            swapData.order,
-            "", // extension
-            swapData.orderHash,
-            taker, // taker
-            MAKING_AMOUNT,
-            estimatedTakingAmount,
-            0, // remainingMakingAmount
-            swapData.extraData
-        );
-
-        assertEq(usdc.balanceOf(address(srcClone)), MAKING_AMOUNT);
-        assertEq(address(srcClone).balance, SRC_SAFETY_DEPOSIT);
     }
 
     /* solhint-enable func-name-mixedcase */

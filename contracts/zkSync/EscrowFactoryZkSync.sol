@@ -7,7 +7,7 @@ import { SimpleSettlement } from "limit-order-settlement/contracts/SimpleSettlem
 
 import { BaseEscrowFactory } from "../BaseEscrowFactory.sol";
 import { MerkleStorageInvalidator } from "../MerkleStorageInvalidator.sol";
-import { IBaseEscrow } from "../interfaces/IBaseEscrow.sol";
+import { IEscrowSrc } from "../interfaces/IEscrowSrc.sol";
 import { IEscrowDst } from "../interfaces/IEscrowDst.sol";
 import { ImmutablesLib } from "../libraries/ImmutablesLib.sol";
 
@@ -22,7 +22,7 @@ import { ZkSyncLib } from "./ZkSyncLib.sol";
  * @custom:security-contact security@1inch.io
  */
 contract EscrowFactoryZkSync is BaseEscrowFactory {
-    using ImmutablesLib for IBaseEscrow.Immutables;
+    using ImmutablesLib for IEscrowSrc.Immutables;
     using ImmutablesLib for IEscrowDst.ImmutablesDst;
 
     bytes32 public immutable ESCROW_SRC_INPUT_HASH;
@@ -30,13 +30,12 @@ contract EscrowFactoryZkSync is BaseEscrowFactory {
 
     constructor(
         address limitOrderProtocol,
-        address weth,
         IERC20 accessToken,
         address owner,
         uint32 rescueDelaySrc,
         uint32 rescueDelayDst
     )
-    SimpleSettlement(limitOrderProtocol, accessToken, weth, owner)
+    SimpleSettlement(limitOrderProtocol, accessToken, address(0), owner)
     MerkleStorageInvalidator(limitOrderProtocol) {
         ESCROW_SRC_IMPLEMENTATION = address(new EscrowSrcZkSync(rescueDelaySrc, accessToken));
         ESCROW_DST_IMPLEMENTATION = address(new EscrowDstZkSync(rescueDelayDst, accessToken));
@@ -57,7 +56,7 @@ contract EscrowFactoryZkSync is BaseEscrowFactory {
     /**
      * @notice See {IEscrowFactory-addressOfEscrowSrc}.
      */
-    function addressOfEscrowSrc(IBaseEscrow.Immutables calldata immutables) external view override returns (address) {
+    function addressOfEscrowSrc(IEscrowSrc.Immutables calldata immutables) external view override returns (address) {
         return ZkSyncLib.computeAddressZkSync(immutables.hash(), _PROXY_SRC_BYTECODE_HASH, address(this), ESCROW_SRC_INPUT_HASH);
     }
 

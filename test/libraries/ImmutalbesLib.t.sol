@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import { IEscrowDst } from "contracts/interfaces/IEscrowDst.sol";
-import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
+import { IEscrowSrc } from "contracts/interfaces/IEscrowSrc.sol";
 import { ImmutablesLib } from "contracts/libraries/ImmutablesLib.sol";
 
 import { BaseSetup } from "../utils/BaseSetup.sol";
@@ -23,8 +23,8 @@ contract ImmutablesLibTest is BaseSetup {
         (IEscrowDst.ImmutablesDst memory immutablesDst,,) = _prepareDataDst();
         
         CrossChainTestLib.SwapData memory swapData = _prepareDataSrc(false, false);
-        IBaseEscrow.Immutables memory immutablesSrc = swapData.immutables;
-        IBaseEscrow.Immutables memory immutablesSrcFromDst = IBaseEscrow.Immutables({
+        IEscrowSrc.Immutables memory immutablesSrc = swapData.immutables;
+        IEscrowSrc.Immutables memory immutablesSrcFromDst = IEscrowSrc.Immutables({
             orderHash: immutablesDst.orderHash,
             amount: immutablesDst.amount,
             maker: immutablesDst.maker,

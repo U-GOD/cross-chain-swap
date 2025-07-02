@@ -3,11 +3,11 @@
 pragma solidity 0.8.23;
 
 import { IEscrowDst } from "contracts/interfaces/IEscrowDst.sol";
-import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
+import { IEscrowSrc } from "contracts/interfaces/IEscrowSrc.sol";
 import { ImmutablesLib } from "contracts/libraries/ImmutablesLib.sol";
 
 contract ImmutablesLibProxy {
-    function hash(IBaseEscrow.Immutables calldata immutables) external pure returns(bytes32) {
+    function hash(IEscrowSrc.Immutables calldata immutables) external pure returns(bytes32) {
         return ImmutablesLib.hash(immutables);
     }
 
@@ -15,11 +15,21 @@ contract ImmutablesLibProxy {
         return ImmutablesLib.hash(immutables);
     }
 
-    function hashes(IBaseEscrow.Immutables calldata src, IEscrowDst.ImmutablesDst calldata dst)
+    function hashes(IEscrowSrc.Immutables calldata src, IEscrowDst.ImmutablesDst calldata dst)
         external
         pure
         returns (bytes32, bytes32)
     {
-        return (ImmutablesLib.hash(src), ImmutablesLib.hash(ImmutablesLib.asImmutables(dst)));
+        return (ImmutablesLib.hash(src), ImmutablesLib.hash(_asImmutables(dst)));
+    }
+
+    function _asImmutables(IEscrowDst.ImmutablesDst calldata dst)
+        internal
+        pure
+        returns (IEscrowSrc.Immutables calldata src)
+    {
+        assembly ("memory-safe") {
+            src := dst
+        }
     }
 }

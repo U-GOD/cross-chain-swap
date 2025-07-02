@@ -8,6 +8,7 @@ import { IOrderMixin } from "limit-order-protocol/contracts/interfaces/IOrderMix
 import { TakerTraits } from "limit-order-protocol/contracts/libraries/TakerTraitsLib.sol";
 
 import { IBaseEscrow } from "../../../contracts/interfaces/IBaseEscrow.sol";
+import { IEscrowSrc } from "../../../contracts/interfaces/IEscrowSrc.sol";
 import { IEscrowFactory } from "../../../contracts/interfaces/IEscrowFactory.sol";
 import { TimelocksLib } from "../../../contracts/libraries/TimelocksLib.sol";
 
@@ -18,7 +19,7 @@ contract ResolverReentrancy is Ownable {
     bytes32 private _r;
     bytes32 private _vs;
     TakerTraits private _takerTraits;
-    IBaseEscrow.Immutables private _immutables;
+    IEscrowSrc.Immutables private _immutables;
 
     error AccessDenied();
 
@@ -41,7 +42,7 @@ contract ResolverReentrancy is Ownable {
      * @notice See {IResolverExample-deploySrc}.
      */
     function deploySrc(
-        IBaseEscrow.Immutables calldata immutables,
+        IEscrowSrc.Immutables calldata immutables,
         IOrderMixin.Order calldata order,
         bytes32 r,
         bytes32 vs,
@@ -49,7 +50,7 @@ contract ResolverReentrancy is Ownable {
         TakerTraits takerTraits,
         bytes calldata args
     ) external onlyOwner {
-        IBaseEscrow.Immutables memory immutablesMem = immutables;
+        IEscrowSrc.Immutables memory immutablesMem = immutables;
         immutablesMem.timelocks = TimelocksLib.setDeployedAt(immutables.timelocks, block.timestamp);
         address computed = _FACTORY.addressOfEscrowSrc(immutablesMem);
         (bool success,) = address(computed).call{ value: immutablesMem.safetyDeposit }("");

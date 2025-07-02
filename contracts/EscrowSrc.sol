@@ -37,7 +37,7 @@ contract EscrowSrc is Escrow, IEscrowSrc {
      */
     function withdraw(bytes32 secret, Immutables calldata immutables)
         external
-        onlyTaker(immutables)
+        onlyTaker(immutables.taker)
         onlyAfter(immutables.timelocks.get(TimelocksLib.Stage.SrcWithdrawal))
         onlyBefore(immutables.timelocks.get(TimelocksLib.Stage.SrcCancellation))
     {
@@ -52,24 +52,11 @@ contract EscrowSrc is Escrow, IEscrowSrc {
      */
     function withdrawTo(bytes32 secret, address target, Immutables calldata immutables)
         external
-        onlyTaker(immutables)
+        onlyTaker(immutables.taker)
         onlyAfter(immutables.timelocks.get(TimelocksLib.Stage.SrcWithdrawal))
         onlyBefore(immutables.timelocks.get(TimelocksLib.Stage.SrcCancellation))
     {
         _withdrawTo(secret, target, immutables);
-    }
-
-    /**
-     * @notice See {IBaseEscrow-rescueFunds}.
-     */
-    function rescueFunds(address token, uint256 amount, Immutables calldata immutables)
-        external
-        onlyTaker(immutables)
-        onlyValidImmutables(immutables.hash())
-        onlyAfter(immutables.timelocks.rescueStart(RESCUE_DELAY))
-    {
-        _uniTransfer(token, msg.sender, amount);
-        emit FundsRescued(token, amount);
     }
 
     /**
@@ -95,7 +82,7 @@ contract EscrowSrc is Escrow, IEscrowSrc {
      */
     function cancel(Immutables calldata immutables)
         external
-        onlyTaker(immutables)
+        onlyTaker(immutables.taker)
         onlyAfter(immutables.timelocks.get(TimelocksLib.Stage.SrcCancellation))
     {
         _cancel(immutables);
@@ -116,6 +103,19 @@ contract EscrowSrc is Escrow, IEscrowSrc {
     }
 
     /**
+     * @notice See {IBaseEscrow-rescueFunds}.
+     */
+    function rescueFunds(address token, uint256 amount, Immutables calldata immutables)
+        external
+        onlyTaker(immutables.taker)
+        onlyValidImmutables(immutables.hash())
+        onlyAfter(immutables.timelocks.rescueStart(RESCUE_DELAY))
+    {
+        _uniTransfer(token, msg.sender, amount);
+        emit FundsRescued(token, amount);
+    }
+
+    /**
      * @dev Transfers ERC20 tokens to the target and native tokens to the caller.
      * @param secret The secret that unlocks the escrow.
      * @param target The address to transfer ERC20 tokens to.
@@ -124,7 +124,7 @@ contract EscrowSrc is Escrow, IEscrowSrc {
     function _withdrawTo(bytes32 secret, address target, Immutables calldata immutables)
         internal
         onlyValidImmutables(immutables.hash())
-        onlyValidSecret(secret, immutables)
+        onlyValidSecret(secret, immutables.hashlock)
     {
         IERC20(immutables.token.get()).safeTransfer(target, immutables.amount);
         _ethTransfer(msg.sender, immutables.safetyDeposit);

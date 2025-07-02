@@ -841,9 +841,7 @@ contract MerkleStorageInvalidatorIntTest is BaseSetup {
             address(0), 
             false, 
             true,
-            "",
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE
+            ""
         );
 
         swapData.immutables.hashlock = hashedS[idx];

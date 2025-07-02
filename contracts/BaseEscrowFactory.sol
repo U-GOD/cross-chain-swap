@@ -4,7 +4,7 @@ pragma solidity 0.8.23;
 
 import { Clones } from "openzeppelin-contracts/contracts/proxy/Clones.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { Math } from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import { Create2 } from "openzeppelin-contracts/contracts/utils/Create2.sol";
 import { Address, AddressLib } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { SafeERC20 } from "solidity-utils/contracts/libraries/SafeERC20.sol";
@@ -19,7 +19,7 @@ import { ImmutablesLib } from "./libraries/ImmutablesLib.sol";
 import { Timelocks, TimelocksLib } from "./libraries/TimelocksLib.sol";
 
 import { IEscrowFactory } from "./interfaces/IEscrowFactory.sol";
-import { IBaseEscrow } from "./interfaces/IBaseEscrow.sol";
+import { IEscrowSrc } from "./interfaces/IEscrowSrc.sol";
 import { IEscrowDst } from "./interfaces/IEscrowDst.sol";
 import { SRC_IMMUTABLES_LENGTH } from "./EscrowFactoryContext.sol";
 import { MerkleStorageInvalidator } from "./MerkleStorageInvalidator.sol";
@@ -33,7 +33,7 @@ import { MerkleStorageInvalidator } from "./MerkleStorageInvalidator.sol";
 abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleStorageInvalidator {
     using AddressLib for Address;
     using Clones for address;
-    using ImmutablesLib for IBaseEscrow.Immutables;
+    using ImmutablesLib for IEscrowSrc.Immutables;
     using ImmutablesLib for IEscrowDst.ImmutablesDst;
     using SafeERC20 for IERC20;
     using TimelocksLib for Timelocks;
@@ -53,7 +53,6 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
      * The external postInteraction function call will be made from the Limit Order Protocol
      * after all funds have been transferred. See {IPostInteraction-postInteraction}.
      * extraData consists:
-     * 1 byte - flags - will be skipped (for compatibility with Fusion)
      * 20 bytes — integrator fee recipient
      * 20 bytes - protocol fee recipient
      * Fee structure determined by `super._getFeeAmounts`:
@@ -65,9 +64,6 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
      *      4 bytes - allowed time
      *      1 byte - size of the whitelist
      *      (bytes12)[N] — taker whitelist
-     * Surpluses fee structure (for compatibility with Fusion):
-     *      32 bytes - estimated taking amount
-     *      1 byte - protocol surplus fee (in 1e2) (is equal 0)
      * bytes — custom data to call extra postInteraction (optional)
      */
     function _postInteraction(
@@ -80,25 +76,14 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
         uint256 remainingMakingAmount,
         bytes calldata extraData
     ) internal override(FeeTaker) {
-        // The first byte is reserved for the custom receiver flag as used in FeeTaker (Fusion).
-        // Although it's not needed here, we keep it for compatibility with Fusion's calldata structure.
-        // This byte will always be zero in our case and should be skipped during decoding.
-        address integratorFeeRecipient = address(bytes20(extraData[1:21]));
-        address protocolFeeRecipient = address(bytes20(extraData[21:41]));
+        address integratorFeeRecipient = address(bytes20(extraData[:20]));
+        address protocolFeeRecipient = address(bytes20(extraData[20:40]));
 
-        // A custom receiver can be specified as an optional parameter in Fusion.
-        // It may occupy bytes [41..61) of the `extraData` field.
-        //
-        // If the first byte of `extraData` contains a specific flag,
-        // the custom receiver address is extracted and used.
-        //
-        // In the case of Fusion+, this flag is not set (i.e., extraData[0] == 0),
-        // so the custom receiver is omitted from calldata.
-        extraData = extraData[41:];
+        extraData = extraData[40:];
 
         uint256 superArgsLength = extraData.length - SRC_IMMUTABLES_LENGTH;
 
-        (uint256 integratorFeeAmount, uint256 protocolFeeAmount, bytes calldata tail) = super._getFeeAmounts(
+        (uint256 integratorFeeAmount, uint256 protocolFeeAmount, bytes calldata tail) = FeeTaker._getFeeAmounts(
             order, 
             taker, 
             takingAmount, 
@@ -139,7 +124,7 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
             hashlock = extraDataArgs.hashlockInfo;
         }
 
-        IBaseEscrow.Immutables memory immutables = IBaseEscrow.Immutables({
+        IEscrowSrc.Immutables memory immutables = IEscrowSrc.Immutables({
             orderHash: orderHash,
             hashlock: hashlock,
             maker: order.maker,
@@ -174,32 +159,32 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
     /**
      * @notice See {IEscrowFactory-createDstEscrow}.
      */
-    function createDstEscrow(IEscrowDst.ImmutablesDst calldata dstImmutables, uint256 srcCancellationTimestamp) external payable {
-        address token = dstImmutables.token.get();
-        uint256 nativeAmount = dstImmutables.safetyDeposit;
+    function createDstEscrow(IEscrowDst.ImmutablesDst calldata immutables, uint256 srcCancellationTimestamp) external payable {
+        address token = immutables.token.get();
+        uint256 nativeAmount = immutables.safetyDeposit;
         if (token == address(0)) {
-            nativeAmount += dstImmutables.amount;
+            nativeAmount += immutables.amount;
         }
         if (msg.value != nativeAmount) revert InsufficientEscrowBalance();
 
-        IEscrowDst.ImmutablesDst memory immutables = dstImmutables;
-        immutables.timelocks = immutables.timelocks.setDeployedAt(block.timestamp);
+        IEscrowDst.ImmutablesDst memory immutablesMem = immutables;
+        immutablesMem.timelocks = immutablesMem.timelocks.setDeployedAt(block.timestamp);
         // Check that the escrow cancellation will start not later than the cancellation time on the source chain.
-        if (immutables.timelocks.get(TimelocksLib.Stage.DstCancellation) > srcCancellationTimestamp) revert InvalidCreationTime();
+        if (immutablesMem.timelocks.get(TimelocksLib.Stage.DstCancellation) > srcCancellationTimestamp) revert InvalidCreationTime();
 
-        bytes32 salt = immutables.hashMem();
+        bytes32 salt = immutablesMem.hashMem();
         address escrow = _deployEscrow(salt, msg.value, ESCROW_DST_IMPLEMENTATION);
         if (token != address(0)) {
-            IERC20(token).safeTransferFrom(msg.sender, escrow, immutables.amount);
+            IERC20(token).safeTransferFrom(msg.sender, escrow, immutablesMem.amount);
         }
 
-        emit DstEscrowCreated(escrow, dstImmutables.hashlock, dstImmutables.taker);
+        emit DstEscrowCreated(escrow, immutables.hashlock, immutables.taker);
     }
 
     /**
      * @notice See {IEscrowFactory-addressOfEscrowSrc}.
      */
-    function addressOfEscrowSrc(IBaseEscrow.Immutables calldata immutables) external view virtual returns (address) {
+    function addressOfEscrowSrc(IEscrowSrc.Immutables calldata immutables) external view virtual returns (address) {
         return Create2.computeAddress(immutables.hash(), _PROXY_SRC_BYTECODE_HASH);
     }
 

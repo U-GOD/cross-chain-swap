@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 import { TakerTraits } from "limit-order-protocol/contracts/libraries/TakerTraitsLib.sol";
 import { Merkle } from "murky/src/Merkle.sol";
@@ -35,9 +35,7 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
             address(0), // receiver
             false, // fakeOrder
             false, // allowMultipleFills,
-            "",
-            dstAmount,
-            PROTOCOL_SURPLUS_FEE
+            ""
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.privateKey, swapData.orderHash);
@@ -92,9 +90,7 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
             address(0), // receiver
             false, // fakeOrder
             false, // allowMultipleFills,
-            postInterationCustomData,
-            dstAmount,
-            PROTOCOL_SURPLUS_FEE
+            postInterationCustomData
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.privateKey, swapData.orderHash);
@@ -147,9 +143,7 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
             address(0), // receiver
             false, // fakeOrder
             false, // allowMultipleFills
-            "",
-            dstAmount,
-            PROTOCOL_SURPLUS_FEE
+            ""
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.privateKey, swapData.orderHash);
@@ -210,9 +204,7 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
             address(0), // receiver
             false, // fakeOrder
             false, // allowMultipleFills
-            "",
-            dstAmount,
-            PROTOCOL_SURPLUS_FEE
+            ""
         );
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.privateKey, swapData.orderHash);

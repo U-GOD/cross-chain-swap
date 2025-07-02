@@ -35,7 +35,7 @@ contract EscrowDst is Escrow, IEscrowDst {
      */
     function withdraw(bytes32 secret, ImmutablesDst calldata immutables)
         external
-        onlyTaker(immutables.asImmutables())
+        onlyTaker(immutables.taker)
         onlyAfter(immutables.timelocks.get(TimelocksLib.Stage.DstWithdrawal))
         onlyBefore(immutables.timelocks.get(TimelocksLib.Stage.DstCancellation))
     {
@@ -57,26 +57,13 @@ contract EscrowDst is Escrow, IEscrowDst {
     }
 
     /**
-     * @notice See {IBaseEscrow-rescueFunds}.
-     */
-    function rescueFunds(address token, uint256 amount, ImmutablesDst calldata immutables)
-        external
-        onlyTaker(immutables.asImmutables())
-        onlyValidImmutables(immutables.hash())
-        onlyAfter(immutables.timelocks.rescueStart(RESCUE_DELAY))
-    {
-        _uniTransfer(token, msg.sender, amount);
-        emit FundsRescued(token, amount);
-    }
-
-    /**
      * @notice See {IBaseEscrow-cancel}.
      * @dev The function works on the time interval highlighted with capital letters:
      * ---- contract deployed --/-- finality --/-- private withdrawal --/-- public withdrawal --/-- PRIVATE CANCELLATION ----
      */
     function cancel(ImmutablesDst calldata immutables)
         external
-        onlyTaker(immutables.asImmutables())
+        onlyTaker(immutables.taker)
         onlyValidImmutables(immutables.hash())
         onlyAfter(immutables.timelocks.get(TimelocksLib.Stage.DstCancellation))
     {
@@ -86,13 +73,26 @@ contract EscrowDst is Escrow, IEscrowDst {
     }
 
     /**
+     * @notice See {IBaseEscrow-rescueFunds}.
+     */
+    function rescueFunds(address token, uint256 amount, ImmutablesDst calldata immutables)
+        external
+        onlyTaker(immutables.taker)
+        onlyValidImmutables(immutables.hash())
+        onlyAfter(immutables.timelocks.rescueStart(RESCUE_DELAY))
+    {
+        _uniTransfer(token, msg.sender, amount);
+        emit FundsRescued(token, amount);
+    }
+
+    /**
      * @dev Transfers ERC20 (or native) tokens to the maker and native tokens to the caller.
      * @param immutables The immutable values used to deploy the clone contract.
      */
     function _withdraw(bytes32 secret, ImmutablesDst calldata immutables)
         internal
         onlyValidImmutables(immutables.hash())
-        onlyValidSecret(secret, immutables.asImmutables())
+        onlyValidSecret(secret, immutables.hashlock)
     {
         if (immutables.integratorFeeAmount > 0) {
             _uniTransfer(

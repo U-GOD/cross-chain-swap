@@ -3,8 +3,6 @@ pragma solidity 0.8.23;
 
 import { Test } from "forge-std/Test.sol";
 
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-
 import { IWETH, LimitOrderProtocol } from "limit-order-protocol/contracts/LimitOrderProtocol.sol";
 import { TokenCustomDecimalsMock } from "solidity-utils/contracts/mocks/TokenCustomDecimalsMock.sol";
 import { TokenMock } from "solidity-utils/contracts/mocks/TokenMock.sol";
@@ -29,7 +27,6 @@ contract BaseSetup is Test, Utils {
     bytes32 internal constant HASHED_SECRET = keccak256(abi.encodePacked(SECRET));
     uint256 internal constant MAKING_AMOUNT = 0.3 ether;
     uint256 internal constant TAKING_AMOUNT = 0.5 ether;
-    uint256 internal constant ESTIMATED_TAKING_AMOUNT = TAKING_AMOUNT;
     uint256 internal constant SRC_SAFETY_DEPOSIT = 0.03 ether;
     uint256 internal constant DST_SAFETY_DEPOSIT = 0.05 ether;
     uint32 internal constant RESOLVER_FEE = 100;
@@ -39,7 +36,6 @@ contract BaseSetup is Test, Utils {
     uint256 internal constant INTEGRATOR_SHARES = 20;
     uint256 internal constant FEES_AMOUNT = 0.1 ether;
     uint256 internal constant PROTOCOL_FEE_AMOUNT = 0.096 ether;
-    uint256 internal constant PROTOCOL_SURPLUS_FEE = 0;
     uint256 internal constant WHITELIST_PROTOCOL_FEE_DISCOUNT = 50;
 
     uint256 internal constant BASE_1E5 = 1e5;
@@ -59,7 +55,6 @@ contract BaseSetup is Test, Utils {
     BaseEscrowFactory internal escrowFactory;
     EscrowSrc internal escrowSrc;
     EscrowDst internal escrowDst;
-    // IFeeBank internal feeBank;
 
     address[] internal resolvers;
 
@@ -156,12 +151,11 @@ contract BaseSetup is Test, Utils {
 
         if (isZkSync) {
             escrowFactory = new EscrowFactoryZkSync(
-                address(limitOrderProtocol), address(inch), accessToken, charlie.addr,  RESCUE_DELAY, RESCUE_DELAY
+                address(limitOrderProtocol), accessToken, charlie.addr,  RESCUE_DELAY, RESCUE_DELAY
             );
         } else {
             escrowFactory = new EscrowFactory(
                 address(limitOrderProtocol), 
-                address(inch), 
                 accessToken, 
                 charlie.addr, 
                 RESCUE_DELAY, 
@@ -171,8 +165,6 @@ contract BaseSetup is Test, Utils {
         escrowSrc = EscrowSrc(escrowFactory.ESCROW_SRC_IMPLEMENTATION());
         escrowDst = EscrowDst(escrowFactory.ESCROW_DST_IMPLEMENTATION());
 
-        // feeBank = IFeeBank(escrowFactory.FEE_BANK());
-
         nativeTokenRejector = new NoReceive();
         customPostInteractor = new CustomPostInteraction();
 
@@ -180,7 +172,6 @@ contract BaseSetup is Test, Utils {
         vm.label(address(escrowSrc), "EscrowSrc");
         vm.label(address(escrowDst), "EscrowDst");
         vm.label(address(nativeTokenRejector), "NoReceive");
-        // vm.label(address(feeBank), "FeeBank");
     }
 
     function _prepareDataSrc(bool fakeOrder, bool allowMultipleFills) internal returns(CrossChainTestLib.SwapData memory) {
@@ -193,9 +184,7 @@ contract BaseSetup is Test, Utils {
             address(0),
             fakeOrder,
             allowMultipleFills,
-            "",
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE
+            ""
         );
     }
 
@@ -213,9 +202,7 @@ contract BaseSetup is Test, Utils {
             address(0),
             fakeOrder,
             allowMultipleFills,
-            "",
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE
+            ""
         );
     }
 
@@ -228,9 +215,7 @@ contract BaseSetup is Test, Utils {
         address receiver,
         bool fakeOrder,
         bool allowMultipleFills,
-        bytes memory customDataForPostInteraction,
-        uint256 estimatedDstAmount,
-        uint256 protocolSurplusFee
+        bytes memory customDataForPostInteraction
     ) internal returns(CrossChainTestLib.SwapData memory swapData) {
         swapData = CrossChainTestLib.prepareDataSrc(
             CrossChainTestLib.OrderDetails({
@@ -259,9 +244,7 @@ contract BaseSetup is Test, Utils {
                 integratorFee: uint16(INTEGRATOR_FEE),
                 integratorShare: uint8(INTEGRATOR_SHARES),
                 whitelistDiscountNumerator: uint8(WHITELIST_PROTOCOL_FEE_DISCOUNT),
-                customDataForPostInteraction: customDataForPostInteraction,
-                expectedTakingAmount: estimatedDstAmount,
-                protocolSurplusFee: uint8(protocolSurplusFee)
+                customDataForPostInteraction: customDataForPostInteraction
             }),
             CrossChainTestLib.EscrowDetails({
                 hashlock: hashlock,
@@ -287,8 +270,6 @@ contract BaseSetup is Test, Utils {
             INTEGRATOR_FEE,
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE,
             true
         );
     }
@@ -304,8 +285,6 @@ contract BaseSetup is Test, Utils {
         uint256 integratorFee,
         uint256 integratorShares,
         uint256 whitelistDiscount,
-        uint256 estimatedTakingAmount,
-        uint256 protocolSurplusFee,
         bool isWhitelisted
     ) internal view returns (IEscrowDst.ImmutablesDst memory, uint256, EscrowDst) {
         protocolFee = isWhitelisted ? protocolFee * whitelistDiscount / BASE_1E2 : protocolFee;
@@ -316,11 +295,6 @@ contract BaseSetup is Test, Utils {
             integratorFee,
             integratorShares
         );
-
-        uint256 actualTakingAmount = amount - integratorFeeAmount - protocolFeeAmount;
-        if (actualTakingAmount > estimatedTakingAmount) {
-            protocolFeeAmount += Math.mulDiv((actualTakingAmount - estimatedTakingAmount), protocolSurplusFee, BASE_1E2);
-        }
 
         bytes32 orderHash = bytes32(block.timestamp); // fake order hash
         uint256 srcCancellationTimestamp = block.timestamp + srcTimelocks.cancellation;

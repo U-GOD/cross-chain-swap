@@ -2,27 +2,12 @@
 
 pragma solidity ^0.8.0;
 
-import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
-
-import { Timelocks } from "../libraries/TimelocksLib.sol";
-
 /**
  * @title Base Escrow interface for cross-chain atomic swap.
  * @notice Interface implies locking funds initially and then unlocking them with verification of the secret presented.
  * @custom:security-contact security@1inch.io
  */
 interface IBaseEscrow {
-    struct Immutables {
-        bytes32 orderHash;
-        bytes32 hashlock;  // Hash of the secret.
-        Address maker;
-        Address taker;
-        Address token;
-        uint256 amount;
-        uint256 safetyDeposit;
-        Timelocks timelocks;
-    }
-
     /**
      * @notice Emitted on escrow cancellation.
      */

@@ -5,7 +5,6 @@ pragma solidity 0.8.23;
 import { Script } from "forge-std/Script.sol";
 import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 
-import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
 import { IEscrowSrc } from "contracts/interfaces/IEscrowSrc.sol";
 import { IEscrowFactory } from "contracts/interfaces/IEscrowFactory.sol";
 import { IResolverExample } from "contracts/interfaces/IResolverExample.sol";
@@ -29,7 +28,7 @@ contract CancelSrc is Script {
         uint256 srcAmount = 1; // 1 USDC
         uint256 safetyDeposit = 1;
 
-        IBaseEscrow.Immutables memory immutables = IBaseEscrow.Immutables({
+        IEscrowSrc.Immutables memory immutables = IEscrowSrc.Immutables({
             orderHash: orderHash,
             amount: srcAmount,
             maker: Address.wrap(uint160(deployer)),

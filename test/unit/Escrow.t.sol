@@ -446,8 +446,6 @@ contract EscrowTest is BaseSetup {
             INTEGRATOR_FEE, 
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE,
             true
         );
 
@@ -770,8 +768,6 @@ contract EscrowTest is BaseSetup {
             INTEGRATOR_FEE,
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE,
             true
         );
 
@@ -856,9 +852,7 @@ contract EscrowTest is BaseSetup {
             receiver,
             true,
             false,
-            "",
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE
+            ""
         );
 
         (bool success,) = address(swapData.srcClone).call{ value: SRC_SAFETY_DEPOSIT }("");
@@ -1063,8 +1057,6 @@ contract EscrowTest is BaseSetup {
             INTEGRATOR_FEE, 
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE,
             true
         );
 
@@ -1106,8 +1098,6 @@ contract EscrowTest is BaseSetup {
             INTEGRATOR_FEE, 
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
-            ESTIMATED_TAKING_AMOUNT,
-            PROTOCOL_SURPLUS_FEE,
             true
         );
 

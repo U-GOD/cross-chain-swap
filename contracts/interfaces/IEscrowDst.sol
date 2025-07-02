@@ -15,7 +15,7 @@ import { IEscrow } from "./IEscrow.sol";
  */
 interface IEscrowDst is IEscrow {
     struct ImmutablesDst {
-        // first 8 fields are the same as IBaseEscrow.Immutables
+        // first 8 fields are the same as IEscrowSrc.Immutables
         bytes32 orderHash;
         bytes32 hashlock;  // Hash of the secret.
         Address maker;
@@ -40,6 +40,14 @@ interface IEscrowDst is IEscrow {
     function withdraw(bytes32 secret, ImmutablesDst calldata immutables) external;
 
     /**
+     * @notice Withdraws funds to maker
+     * @dev Withdrawal can only be made during the withdrawal period and with secret with hash matches the hashlock.
+     * @param secret The secret that unlocks the escrow.
+     * @param immutables The immutables of the escrow contract.
+     */
+    function publicWithdraw(bytes32 secret, ImmutablesDst calldata immutables) external;
+
+    /**
      * @notice Cancels the escrow and returns tokens to a predetermined recipient.
      * @dev The escrow can only be cancelled during the cancellation period.
      * The safety deposit is sent to the caller.
@@ -55,12 +63,4 @@ interface IEscrowDst is IEscrow {
      * @param immutables The immutables of the escrow contract.
      */
     function rescueFunds(address token, uint256 amount, ImmutablesDst calldata immutables) external;
-
-    /**
-     * @notice Withdraws funds to maker
-     * @dev Withdrawal can only be made during the withdrawal period and with secret with hash matches the hashlock.
-     * @param secret The secret that unlocks the escrow.
-     * @param immutables The immutables of the escrow contract.
-     */
-    function publicWithdraw(bytes32 secret, ImmutablesDst calldata immutables) external;
 }

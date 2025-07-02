@@ -5,7 +5,7 @@ pragma solidity 0.8.23;
 import { IOrderMixin } from "limit-order-protocol/contracts/interfaces/IOrderMixin.sol";
 import { TakerTraits } from "limit-order-protocol/contracts/libraries/TakerTraitsLib.sol";
 
-import { IBaseEscrow } from "../interfaces/IBaseEscrow.sol";
+import { IEscrowSrc } from "../interfaces/IEscrowSrc.sol";
 import { IEscrowDst } from "../interfaces/IEscrowDst.sol";
 
 /**
@@ -28,7 +28,7 @@ interface IResolverExample {
      * @param args Arguments that are used by the taker (target, extension, interaction, permit).
      */
     function deploySrc(
-        IBaseEscrow.Immutables calldata immutables,
+        IEscrowSrc.Immutables calldata immutables,
         IOrderMixin.Order calldata order,
         bytes32 r,
         bytes32 vs,
@@ -39,10 +39,10 @@ interface IResolverExample {
 
     /**
      * @notice Deploys a new escrow contract for taker on the destination chain.
-     * @param dstImmutables The immutables of the escrow contract that are used in deployment.
+     * @param immutables The immutables of the escrow contract that are used in deployment.
      * @param srcCancellationTimestamp The start of the cancellation period for the source chain.
      */
-    function deployDst(IEscrowDst.ImmutablesDst calldata dstImmutables, uint256 srcCancellationTimestamp) external payable;
+    function deployDst(IEscrowDst.ImmutablesDst calldata immutables, uint256 srcCancellationTimestamp) external payable;
 
     /**
      * @notice Allows the owner to make arbitrary calls to other contracts on behalf of this contract.

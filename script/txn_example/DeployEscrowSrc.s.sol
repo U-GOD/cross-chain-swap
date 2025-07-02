@@ -88,9 +88,7 @@ contract DeployEscrowSrc is Script {
                 integratorFee: uint16(integratorFee),
                 integratorShare: uint8(integratorShare),
                 whitelistDiscountNumerator: uint8(whitelistDiscountNumerator),
-                customDataForPostInteraction: "",
-                expectedTakingAmount: dstAmount,
-                protocolSurplusFee: 0
+                customDataForPostInteraction: ""
             }),
             CrossChainTestLib.EscrowDetails({
                 hashlock: hashlock,

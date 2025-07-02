@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-import { IBaseEscrow } from "../interfaces/IBaseEscrow.sol";
+import { IEscrowSrc } from "../interfaces/IEscrowSrc.sol";
 import { IEscrowDst } from "../interfaces/IEscrowDst.sol";
 
 /**
@@ -18,7 +18,7 @@ library ImmutablesLib {
      * @param immutables The immutables to hash.
      * @return ret The computed hash.
      */
-    function hash(IBaseEscrow.Immutables calldata immutables) internal pure returns(bytes32 ret) {
+    function hash(IEscrowSrc.Immutables calldata immutables) internal pure returns(bytes32 ret) {
         assembly ("memory-safe") {
             let ptr := mload(0x40)
             calldatacopy(ptr, immutables, ESCROW_IMMUTABLES_SIZE)
@@ -31,7 +31,7 @@ library ImmutablesLib {
      * @param immutables The immutables to hash.
      * @return ret The computed hash.
      */
-    function hashMem(IBaseEscrow.Immutables memory immutables) internal pure returns(bytes32 ret) {
+    function hashMem(IEscrowSrc.Immutables memory immutables) internal pure returns(bytes32 ret) {
         assembly ("memory-safe") {
             ret := keccak256(immutables, ESCROW_IMMUTABLES_SIZE)
         }
@@ -58,16 +58,6 @@ library ImmutablesLib {
     function hashMem(IEscrowDst.ImmutablesDst memory immutables) internal pure returns(bytes32 ret) {
         assembly ("memory-safe") {
             ret := keccak256(immutables, ESCROW_IMMUTABLES_DST_SIZE)
-        }
-    }
-
-    function asImmutables(IEscrowDst.ImmutablesDst calldata dst)
-        internal
-        pure
-        returns (IBaseEscrow.Immutables calldata src)
-    {
-        assembly ("memory-safe") {
-            src := dst
         }
     }
 }
