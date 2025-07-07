@@ -18,7 +18,7 @@ import { NoReceive } from "./mocks/NoReceive.sol";
 import { CustomPostInteraction } from "./mocks/CustomPostInteraction.sol";
 import { CrossChainTestLib } from "./libraries/CrossChainTestLib.sol";
 import { Timelocks } from "./libraries/TimelocksSettersLib.sol";
-import { FeeCalcLib } from "utils/FeeCalcLib.sol";
+import { FeeCalcLib } from "./libraries/FeeCalcLib.sol";
 
 /* solhint-disable max-states-count */
 contract BaseSetup is Test, Utils {
@@ -37,8 +37,10 @@ contract BaseSetup is Test, Utils {
     uint256 internal constant FEES_AMOUNT = 0.1 ether;
     uint256 internal constant PROTOCOL_FEE_AMOUNT = 0.096 ether;
     uint256 internal constant WHITELIST_PROTOCOL_FEE_DISCOUNT = 50;
+    uint256 internal constant RATE_BUMP = 900000;
 
     uint256 internal constant BASE_1E5 = 1e5;
+    uint256 internal constant BASE_1E7 = 1e7;
     uint256 internal constant BASE_1E2 = 100;
 
     Wallet internal alice;

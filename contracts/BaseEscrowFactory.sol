@@ -4,7 +4,6 @@ pragma solidity 0.8.23;
 
 import { Clones } from "openzeppelin-contracts/contracts/proxy/Clones.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { Math } from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import { Create2 } from "openzeppelin-contracts/contracts/utils/Create2.sol";
 import { Address, AddressLib } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { SafeERC20 } from "solidity-utils/contracts/libraries/SafeERC20.sol";
@@ -37,7 +36,6 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
     using ImmutablesLib for IEscrowDst.ImmutablesDst;
     using SafeERC20 for IERC20;
     using TimelocksLib for Timelocks;
-    using Math for uint256;
 
     /// @notice See {IEscrowFactory-ESCROW_SRC_IMPLEMENTATION}.
     address public immutable ESCROW_SRC_IMPLEMENTATION;
@@ -52,7 +50,7 @@ abstract contract BaseEscrowFactory is IEscrowFactory, SimpleSettlement, MerkleS
      * to a pre-computed deterministic address of the created escrow.
      * The external postInteraction function call will be made from the Limit Order Protocol
      * after all funds have been transferred. See {IPostInteraction-postInteraction}.
-     * extraData consists:
+     * extraData consists of:
      * 20 bytes — integrator fee recipient
      * 20 bytes - protocol fee recipient
      * Fee structure determined by `super._getFeeAmounts`:

@@ -8,7 +8,8 @@ import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { IEscrowDst } from "contracts/interfaces/IEscrowDst.sol";
 import { IResolverExample } from "contracts/interfaces/IResolverExample.sol";
 import { Timelocks, TimelocksLib } from "contracts/libraries/TimelocksLib.sol";
-import { FeeCalcLib } from "utils/FeeCalcLib.sol";
+
+import { FeeCalcLib } from "test/utils/libraries/FeeCalcLib.sol";
 
 contract CancelDst is Script {
     function run() external {

@@ -59,6 +59,15 @@ contract DeployEscrowSrc is Script {
             0
         );
 
+        bytes memory auctionPoints = abi.encodePacked(
+            uint8(5), // amount of points
+            uint24(800000), uint16(100),
+            uint24(700000), uint16(100),
+            uint24(600000), uint16(100),
+            uint24(500000), uint16(100),
+            uint24(400000), uint16(100)
+        );
+
         address[] memory resolvers = new address[](1);
         resolvers[0] = address(resolver);
         CrossChainTestLib.SwapData memory swapData = CrossChainTestLib.prepareDataSrc(
@@ -80,7 +89,7 @@ contract DeployEscrowSrc is Script {
                     0, // duration: 10 minutes
                     0, // delay
                     0, // initialRateBump
-                    "" // auctionPoints
+                    auctionPoints // auctionPoints
                 ),
                 protocolFeeRecipient: protocolFeeRecipient,
                 integratorFeeRecipient: integratorFeeRecipient,
@@ -116,6 +125,7 @@ contract DeployEscrowSrc is Script {
         
         vm.startBroadcast(deployerPK);
         IERC20(srcToken).approve(address(limitOrderProtocol), srcAmount);
+
         resolver.deploySrc(
             swapData.immutables,
             swapData.order,
@@ -125,6 +135,7 @@ contract DeployEscrowSrc is Script {
             takerTraits,
             args
         );
+
         vm.stopBroadcast();
     }
 }

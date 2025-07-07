@@ -8,7 +8,7 @@ import { Timelocks } from "contracts/libraries/TimelocksLib.sol";
 import { IEscrowDst } from "contracts/interfaces/IEscrowDst.sol";
 import { IResolverExample } from "contracts/interfaces/IResolverExample.sol";
 
-import { FeeCalcLib } from "utils/FeeCalcLib.sol";
+import { FeeCalcLib } from "test/utils/libraries/FeeCalcLib.sol";
 
 import { CrossChainTestLib } from "test/utils/libraries/CrossChainTestLib.sol";
 

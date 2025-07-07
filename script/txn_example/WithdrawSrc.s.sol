@@ -38,7 +38,6 @@ contract WithdrawSrc is Script {
             timelocks: timelocks
         });
 
-        // address escrow = vm.envAddress("ESCROW_SRC");
         address escrow = IEscrowFactory(escrowFactory).addressOfEscrowSrc(immutables);
 
         address[] memory targets = new address[](1);

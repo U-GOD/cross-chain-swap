@@ -2,12 +2,14 @@
 pragma solidity 0.8.23;
 
 import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import { Math } from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 import { TakerTraits } from "limit-order-protocol/contracts/libraries/TakerTraitsLib.sol";
 import { Merkle } from "murky/src/Merkle.sol";
 import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 
 import { IEscrowFactory } from "contracts/interfaces/IEscrowFactory.sol";
+import { IEscrowDst } from "contracts/interfaces/IEscrowDst.sol";
 
 import { BaseSetup } from "../utils/BaseSetup.sol";
 import { CrossChainTestLib } from "../utils/libraries/CrossChainTestLib.sol";
@@ -25,9 +27,10 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
         vm.assume(srcAmount > 0 && dstAmount > 0);
         uint256 srcSafetyDeposit = uint256(srcAmount) * 10 / 100;
         uint256 dstSafetyDeposit = uint256(dstAmount) * 10 / 100;
+        bytes32 hashlock = keccak256(abi.encode(secret));
 
         CrossChainTestLib.SwapData memory swapData = _prepareDataSrcCustom(
-            keccak256(abi.encode(secret)),
+            hashlock,
             srcAmount,
             dstAmount,
             srcSafetyDeposit,
@@ -56,7 +59,49 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
             (bool success,) = address(swapData.srcClone).call{ value: uint64(srcAmount) * 10 / 100 }("");
             assertEq(success, true);
 
+            uint256 dstAmountCorrected = Math.mulDiv(
+                dstAmount,
+                BASE_1E5 + PROTOCOL_FEE*WHITELIST_PROTOCOL_FEE_DISCOUNT/BASE_1E2+INTEGRATOR_FEE,
+                BASE_1E5,
+                Math.Rounding.Ceil
+            );
+
+            dstAmountCorrected = Math.mulDiv(
+                dstAmountCorrected,
+                BASE_1E7 + RATE_BUMP,
+                BASE_1E7,
+                Math.Rounding.Ceil
+            );
+
+            (IEscrowDst.ImmutablesDst memory immutablesDst,,) = _prepareDataDstCustom(
+                hashlock, 
+                dstAmountCorrected, 
+                alice.addr, 
+                resolvers[0],
+                address(dai), 
+                dstSafetyDeposit, 
+                PROTOCOL_FEE, 
+                INTEGRATOR_FEE,
+                INTEGRATOR_SHARES,
+                WHITELIST_PROTOCOL_FEE_DISCOUNT,
+                true
+            );
+
+            IEscrowFactory.DstImmutablesComplement memory immutablesComplement = IEscrowFactory.DstImmutablesComplement({
+                maker: Address.wrap(uint160(alice.addr)),
+                amount: dstAmountCorrected,
+                token: Address.wrap(uint160(address(dai))),
+                safetyDeposit: dstSafetyDeposit,
+                chainId: block.chainid,
+                protocolFeeRecipient: immutablesDst.protocolFeeRecipient,
+                integratorFeeRecipient: immutablesDst.integratorFeeRecipient,
+                protocolFeeAmount: immutablesDst.protocolFeeAmount,
+                integratorFeeAmount: immutablesDst.integratorFeeAmount
+            });
+
             vm.prank(bob.addr);
+            vm.expectEmit();
+            emit IEscrowFactory.SrcEscrowCreated(swapData.immutables, immutablesComplement);
             limitOrderProtocol.fillOrderArgs(
                 swapData.order,
                 r,

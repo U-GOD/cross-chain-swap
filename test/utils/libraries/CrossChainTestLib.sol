@@ -375,10 +375,10 @@ library CrossChainTestLib {
             bytes memory gettersAmountData = abi.encodePacked(
                 factory, 
                 orderDetails.auctionDetails,
-                bytes2(0x0), // integrator fee percentage (in 1e5)
-                bytes1(0x64), // integrator rev share percentage (in 1e2)
-                bytes2(0x0), // resolver fee percentage (in 1e5)
-                bytes1(0x64), // whitelist discount numerator (in 1e2)
+                bytes2(orderDetails.integratorFee),  // integrator fee percentage (in 1e5)
+                bytes1(orderDetails.integratorShare), // integrator rev share percentage (in 1e2)
+                bytes2(orderDetails.protocolFee), // resolver fee percentage (in 1e5)
+                bytes1(orderDetails.whitelistDiscountNumerator), // whitelist discount numerator (in 1e2)
                 whitelistForGetters // struct (1 byte | (bytes10)[N] )
             );
 
