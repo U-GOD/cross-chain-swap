@@ -6,13 +6,15 @@ update:; forge update
 
 build:; forge build
 
-build-zk :; FOUNDRY_PROFILE=zksync forge build --zksync -vvvvv --zk-compile=true --build-info --force
+build-zk :; FOUNDRY_PROFILE=zksync forge build --zksync -vvvvv --zk-compile=true --build-info
 
 tests :; forge test -vvv --gas-report
 
-tests-zk :; FOUNDRY_PROFILE=zksync forge test -vvv --zksync
+tests-zk :; FOUNDRY_PROFILE=zksync forge test -vvv --zksync --force
 
-coverage :; forge coverage --report debug > coverage-report.txt
+coverage :; mkdir -p coverage && FOUNDRY_PROFILE=default forge coverage --report lcov --ir-minimum --report-file coverage/lcov.info
+
+coverage-zk :; mkdir -p coverage && FOUNDRY_PROFILE=zksync forge coverage --zksync --report lcov --ir-minimum --report-file coverage/lcov.info
 
 snapshot :; forge snapshot --no-match-test "testFuzz_*"
 
