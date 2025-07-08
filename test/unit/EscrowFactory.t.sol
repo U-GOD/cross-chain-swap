@@ -24,11 +24,13 @@ contract EscrowFactoryTest is BaseSetup {
     uint256 public constant SECRETS_AMOUNT = 100;
     bytes32[] public hashedSecrets = new bytes32[](SECRETS_AMOUNT);
     bytes32[] public hashedPairs = new bytes32[](SECRETS_AMOUNT);
-    Merkle public merkle = new Merkle();
+    Merkle public merkle;
     bytes32 public root;
 
     function setUp() public virtual override {
         BaseSetup.setUp();
+
+        merkle = new Merkle();
 
         // Note: This is not production-ready code. Use cryptographically secure random to generate secrets.
         for (uint64 i = 0; i < SECRETS_AMOUNT; i++) {

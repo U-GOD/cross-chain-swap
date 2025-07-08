@@ -14,7 +14,7 @@ contract MerkleStorageInvalidatorIntTest is BaseSetup {
     uint256 public constant PARTS_AMOUNT = 100;
     uint256 public constant SECRETS_AMOUNT = PARTS_AMOUNT + 1; // 1 extra to be able to fill the whole amount
 
-    Merkle public merkle = new Merkle();
+    Merkle public merkle;
     bytes32 public root;
     bytes32[] public hashedSecrets = new bytes32[](SECRETS_AMOUNT);
     bytes32[] public hashedPairs = new bytes32[](SECRETS_AMOUNT);
@@ -22,6 +22,8 @@ contract MerkleStorageInvalidatorIntTest is BaseSetup {
 
     function setUp() public virtual override {
         BaseSetup.setUp();
+
+        merkle = new Merkle();
 
         for (uint64 i = 0; i < SECRETS_AMOUNT; i++) {
             // Note: This is not production-ready code. Use cryptographically secure random to generate secrets.
