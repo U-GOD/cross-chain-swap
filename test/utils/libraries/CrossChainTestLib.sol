@@ -410,20 +410,6 @@ library CrossChainTestLib {
             timelocks: escrowDetails.timelocks
         });
 
-       /*
-        * 20 bytes — integrator fee recipient
-        * 20 bytes - protocol fee recipient
-        * Fee structure determined by `super._getFeeAmounts`:
-        *      2 bytes — integrator fee percentage (in 1e5)
-        *      1 byte - integrator rev share percentage (in 1e2)
-        *      2 bytes — resolver fee percentage (in 1e5)
-        *      1 byte - whitelist discount numerator (in 1e2)
-        * Whitelist structure:     
-        *      4 bytes - allowed time
-        *      1 byte - size of the whitelist
-        *      (bytes12)[N] — taker whitelist
-        * bytes — custom data to call extra postInteraction (optional)
-        */
         swapData.srcClone = EscrowSrc(BaseEscrowFactory(payable(factory)).addressOfEscrowSrc(swapData.immutables));
         swapData.extraData = abi.encodePacked(
             bytes20(address(orderDetails.integratorFeeRecipient)),
