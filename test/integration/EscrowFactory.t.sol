@@ -10,6 +10,8 @@ import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 
 import { IEscrowFactory } from "contracts/interfaces/IEscrowFactory.sol";
 import { IEscrowDst } from "contracts/interfaces/IEscrowDst.sol";
+import { BaseEscrowFactory } from "contracts/BaseEscrowFactory.sol";
+import { EscrowSrc } from "contracts/EscrowSrc.sol";
 
 import { BaseSetup } from "../utils/BaseSetup.sol";
 import { CrossChainTestLib } from "../utils/libraries/CrossChainTestLib.sol";
@@ -113,6 +115,103 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
         }
 
         assertEq(usdc.balanceOf(address(swapData.srcClone)), srcAmount);
+        assertEq(address(swapData.srcClone).balance, srcSafetyDeposit);
+    }
+
+    function testFuzz_DeployCloneForTakingAmount(bytes32 secret, uint56 srcAmount, uint56 dstAmount) public {
+        vm.assume(srcAmount > 0 && dstAmount > 0);
+        uint256 dstSafetyDeposit = uint256(dstAmount) * 10 / 100;
+        bytes32 hashlock = keccak256(abi.encode(secret));
+
+        uint256 srcAmountCorrected = Math.mulDiv(
+            srcAmount,
+            BASE_1E5,
+            BASE_1E5 + PROTOCOL_FEE*WHITELIST_PROTOCOL_FEE_DISCOUNT/BASE_1E2+INTEGRATOR_FEE
+        );
+
+        srcAmountCorrected = Math.mulDiv(
+            srcAmountCorrected,
+            BASE_1E7,
+            BASE_1E7 + RATE_BUMP
+        );
+
+        vm.assume(srcAmountCorrected > 0);
+
+        uint256 srcSafetyDeposit = uint256(srcAmountCorrected) * 10 / 100;
+
+        CrossChainTestLib.SwapData memory swapData = _prepareDataSrcCustom(
+            hashlock,
+            srcAmount,
+            dstAmount,
+            srcSafetyDeposit,
+            dstSafetyDeposit,
+            address(0), // receiver
+            false, // fakeOrder
+            false, // allowMultipleFills,
+            ""
+        );
+
+        swapData.immutables.amount = srcAmountCorrected;
+        swapData.srcClone = EscrowSrc(BaseEscrowFactory(payable(escrowFactory)).addressOfEscrowSrc(swapData.immutables));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.privateKey, swapData.orderHash);
+        bytes32 vs = bytes32((uint256(v - 27) << 255)) | s;
+
+        (TakerTraits takerTraits, bytes memory args) = CrossChainTestLib.buildTakerTraits(
+            false, // takingAmount
+            false, // unwrapWeth
+            false, // skipMakerPermit
+            false, // usePermit2
+            address(swapData.srcClone), // target
+            swapData.extension, // extension
+            "", // interaction
+            0 // threshold
+        );
+
+        {
+            (bool success,) = address(swapData.srcClone).call{ value: uint64(srcAmountCorrected) * 10 / 100 }("");
+            assertEq(success, true);
+
+            (IEscrowDst.ImmutablesDst memory immutablesDst,,) = _prepareDataDstCustom(
+                hashlock, 
+                dstAmount, 
+                alice.addr, 
+                resolvers[0],
+                address(dai), 
+                dstSafetyDeposit, 
+                PROTOCOL_FEE, 
+                INTEGRATOR_FEE,
+                INTEGRATOR_SHARES,
+                WHITELIST_PROTOCOL_FEE_DISCOUNT,
+                true
+            );
+
+            IEscrowFactory.DstImmutablesComplement memory immutablesComplement = IEscrowFactory.DstImmutablesComplement({
+                maker: Address.wrap(uint160(alice.addr)),
+                amount: dstAmount,
+                token: Address.wrap(uint160(address(dai))),
+                safetyDeposit: dstSafetyDeposit,
+                chainId: block.chainid,
+                protocolFeeRecipient: immutablesDst.protocolFeeRecipient,
+                integratorFeeRecipient: immutablesDst.integratorFeeRecipient,
+                protocolFeeAmount: immutablesDst.protocolFeeAmount,
+                integratorFeeAmount: immutablesDst.integratorFeeAmount
+            });
+
+            vm.prank(bob.addr);
+            vm.expectEmit();
+            emit IEscrowFactory.SrcEscrowCreated(swapData.immutables, immutablesComplement);
+            limitOrderProtocol.fillOrderArgs(
+                swapData.order,
+                r,
+                vs,
+                dstAmount, // amount
+                takerTraits,
+                args
+            );
+        }
+
+        assertEq(usdc.balanceOf(address(swapData.srcClone)), srcAmountCorrected);
         assertEq(address(swapData.srcClone).balance, srcSafetyDeposit);
     }
 
