@@ -19,7 +19,7 @@ contract ResolverReentrancy is Ownable {
     bytes32 private _r;
     bytes32 private _vs;
     TakerTraits private _takerTraits;
-    IEscrowSrc.Immutables private _immutables;
+    IBaseEscrow.Immutables private _immutables;
 
     error AccessDenied();
 
@@ -42,7 +42,7 @@ contract ResolverReentrancy is Ownable {
      * @notice See {IResolverExample-deploySrc}.
      */
     function deploySrc(
-        IEscrowSrc.Immutables calldata immutables,
+        IBaseEscrow.Immutables calldata immutables,
         IOrderMixin.Order calldata order,
         bytes32 r,
         bytes32 vs,
@@ -50,7 +50,7 @@ contract ResolverReentrancy is Ownable {
         TakerTraits takerTraits,
         bytes calldata args
     ) external onlyOwner {
-        IEscrowSrc.Immutables memory immutablesMem = immutables;
+        IBaseEscrow.Immutables memory immutablesMem = immutables;
         immutablesMem.timelocks = TimelocksLib.setDeployedAt(immutables.timelocks, block.timestamp);
         address computed = _FACTORY.addressOfEscrowSrc(immutablesMem);
         (bool success,) = address(computed).call{ value: immutablesMem.safetyDeposit }("");

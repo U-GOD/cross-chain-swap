@@ -6,11 +6,14 @@ import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
 import { IEscrowFactory } from "contracts/interfaces/IEscrowFactory.sol";
 import { IEscrowDst } from "contracts/interfaces/IEscrowDst.sol";
+import { ImmutablesLib } from "contracts/libraries/ImmutablesLib.sol";
 
 import { BaseSetup } from "../utils/BaseSetup.sol";
 import { CrossChainTestLib } from "../utils/libraries/CrossChainTestLib.sol";
 
 contract EscrowCancelTest is BaseSetup {
+    using ImmutablesLib for IBaseEscrow.Immutables;
+
     function setUp() public virtual override {
         BaseSetup.setUp();
         accessToken.mint(address(this), 1);
@@ -73,7 +76,7 @@ contract EscrowCancelTest is BaseSetup {
         assertEq(success, true);
         usdc.transfer(address(swapData.srcClone), MAKING_AMOUNT);
 
-        (IEscrowDst.ImmutablesDst memory immutablesDst,,) = _prepareDataDst();
+        (IBaseEscrow.Immutables memory immutablesDst,,) = _prepareDataDst();
 
         IEscrowFactory.DstImmutablesComplement memory immutablesComplement = IEscrowFactory.DstImmutablesComplement({
             maker: Address.wrap(uint160(receiver)),
@@ -81,10 +84,12 @@ contract EscrowCancelTest is BaseSetup {
             token: Address.wrap(uint160(address(dai))),
             safetyDeposit: DST_SAFETY_DEPOSIT,
             chainId: block.chainid,
-            protocolFeeRecipient: immutablesDst.protocolFeeRecipient,
-            integratorFeeRecipient: immutablesDst.integratorFeeRecipient,
-            protocolFeeAmount: immutablesDst.protocolFeeAmount,
-            integratorFeeAmount: immutablesDst.integratorFeeAmount
+            parameters: abi.encode(
+                immutablesDst.protocolFeeAmount(),
+                immutablesDst.integratorFeeAmount(),
+                immutablesDst.protocolFeeRecipient(),
+                immutablesDst.integratorFeeRecipient()
+            )
         });
 
         vm.prank(address(limitOrderProtocol));
@@ -235,7 +240,7 @@ contract EscrowCancelTest is BaseSetup {
     }
 
     function test_CancelDst() public {
-        (IEscrowDst.ImmutablesDst memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDst();
+        (IBaseEscrow.Immutables memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDst();
 
         // deploy escrow
         vm.startPrank(bob.addr);
@@ -260,15 +265,15 @@ contract EscrowCancelTest is BaseSetup {
 
     function test_CancelDstDifferentTarget() public {
         address target = charlie.addr;
-        (IEscrowDst.ImmutablesDst memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDstCustom(
-            HASHED_SECRET, 
-            TAKING_AMOUNT, 
-            alice.addr, 
-            target, 
-            address(dai), 
-            DST_SAFETY_DEPOSIT, 
-            PROTOCOL_FEE, 
-            INTEGRATOR_FEE, 
+        (IBaseEscrow.Immutables memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDstCustom(
+            HASHED_SECRET,
+            TAKING_AMOUNT,
+            alice.addr,
+            target,
+            address(dai),
+            DST_SAFETY_DEPOSIT,
+            PROTOCOL_FEE,
+            INTEGRATOR_FEE,
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
             true
@@ -301,15 +306,15 @@ contract EscrowCancelTest is BaseSetup {
     }
 
     function test_CancelDstWithNativeToken() public {
-        (IEscrowDst.ImmutablesDst memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDstCustom(
-            HASHED_SECRET, 
-            TAKING_AMOUNT, 
-            alice.addr, 
-            bob.addr, 
-            address(0), 
-            DST_SAFETY_DEPOSIT, 
-            PROTOCOL_FEE, 
-            INTEGRATOR_FEE, 
+        (IBaseEscrow.Immutables memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDstCustom(
+            HASHED_SECRET,
+            TAKING_AMOUNT,
+            alice.addr,
+            bob.addr,
+            address(0),
+            DST_SAFETY_DEPOSIT,
+            PROTOCOL_FEE,
+            INTEGRATOR_FEE,
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
             true
@@ -334,7 +339,7 @@ contract EscrowCancelTest is BaseSetup {
 
     // Only resolver can cancel
     function test_NoCancelByAnyoneDst() public {
-        (IEscrowDst.ImmutablesDst memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDst();
+        (IBaseEscrow.Immutables memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDst();
 
         // deploy escrow
         vm.prank(bob.addr);
@@ -347,7 +352,7 @@ contract EscrowCancelTest is BaseSetup {
     }
 
     function test_NoCancelDuringWithdrawalDst() public {
-        (IEscrowDst.ImmutablesDst memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDst();
+        (IBaseEscrow.Immutables memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDst();
 
         // deploy escrow
         vm.startPrank(bob.addr);
@@ -390,7 +395,7 @@ contract EscrowCancelTest is BaseSetup {
     function test_NoCallsWithInvalidImmutables() public {
         CrossChainTestLib.SwapData memory swapData = _prepareDataSrc(true, false);
 
-        (IEscrowDst.ImmutablesDst memory immutablesDst, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDst();
+        (IBaseEscrow.Immutables memory immutablesDst, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDst();
 
         (bool success,) = address(swapData.srcClone).call{ value: SRC_SAFETY_DEPOSIT }("");
         assertEq(success, true);
@@ -448,7 +453,7 @@ contract EscrowCancelTest is BaseSetup {
 
     function test_NoPublicCallsByAnyone() public {
         CrossChainTestLib.SwapData memory swapData = _prepareDataSrc(true, false);
-        (IEscrowDst.ImmutablesDst memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDst();
+        (IBaseEscrow.Immutables memory immutables, uint256 srcCancellationTimestamp, IEscrowDst dstClone) = _prepareDataDst();
 
         (bool success,) = address(swapData.srcClone).call{ value: SRC_SAFETY_DEPOSIT }("");
         assertEq(success, true);

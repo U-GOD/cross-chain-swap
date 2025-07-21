@@ -5,7 +5,7 @@ pragma solidity 0.8.23;
 import { Script } from "forge-std/Script.sol";
 import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 
-import { IEscrowDst } from "contracts/interfaces/IEscrowDst.sol";
+import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
 import { IResolverExample } from "contracts/interfaces/IResolverExample.sol";
 import { Timelocks, TimelocksLib } from "contracts/libraries/TimelocksLib.sol";
 
@@ -39,7 +39,7 @@ contract WithdrawDst is Script {
             integratorShare
         );
 
-        IEscrowDst.ImmutablesDst memory immutables = IEscrowDst.ImmutablesDst({
+        IBaseEscrow.Immutables memory immutables = IBaseEscrow.Immutables({
             orderHash: orderHash,
             amount: dstAmount,
             maker: Address.wrap(uint160(deployer)),
@@ -48,10 +48,12 @@ contract WithdrawDst is Script {
             hashlock: hashlock,
             safetyDeposit: safetyDeposit,
             timelocks: timelocks,
-            protocolFeeRecipient: Address.wrap(uint160(protocolFeeRecipient)),
-            integratorFeeRecipient: Address.wrap(uint160(integratorFeeRecipient)),
-            protocolFeeAmount: protocolFeeAmount,
-            integratorFeeAmount: integratorFeeAmount
+            parameters: abi.encode(
+                protocolFeeAmount,
+                integratorFeeAmount,
+                Address.wrap(uint160(protocolFeeRecipient)),
+                Address.wrap(uint160(integratorFeeRecipient))
+            )
         });
 
         address escrow = vm.envAddress("ESCROW_DST");
@@ -60,7 +62,7 @@ contract WithdrawDst is Script {
         address[] memory targets = new address[](1);
         bytes[] memory data = new bytes[](1);
         targets[0] = escrow;
-        data[0] = abi.encodeWithSelector(IEscrowDst(escrow).withdraw.selector, secret, immutables);
+        data[0] = abi.encodeWithSelector(IBaseEscrow(escrow).withdraw.selector, secret, immutables);
 
         vm.startBroadcast(deployerPK);
         // IBaseEscrow(escrow).withdraw(secret, immutables);

@@ -15,10 +15,8 @@ import { BaseEscrow } from "./BaseEscrow.sol";
  * @custom:security-contact security@1inch.io
  */
 abstract contract Escrow is BaseEscrow, IEscrow {
-    
     /// @notice See {IEscrow-PROXY_BYTECODE_HASH}.
     bytes32 public immutable PROXY_BYTECODE_HASH = ProxyHashLib.computeProxyBytecodeHash(address(this));
-
 
     /**
      * @dev Verifies that the computed escrow address matches the address of this contract.

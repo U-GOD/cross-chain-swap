@@ -11,7 +11,7 @@ import { EscrowDst } from "../../contracts/EscrowDst.sol";
 import { EscrowSrc } from "../../contracts/EscrowSrc.sol";
 import { BaseEscrowFactory } from "../../contracts/BaseEscrowFactory.sol";
 import { EscrowFactory } from "../../contracts/EscrowFactory.sol";
-import { IEscrowDst } from "../../contracts/interfaces/IEscrowDst.sol";
+import { IBaseEscrow } from "../../contracts/interfaces/IBaseEscrow.sol";
 import { EscrowFactoryZkSync } from "../../contracts/zkSync/EscrowFactoryZkSync.sol";
 import { Utils } from "./Utils.sol";
 import { NoReceive } from "./mocks/NoReceive.sol";
@@ -32,7 +32,7 @@ contract BaseSetup is Test, Utils {
     uint32 internal constant RESOLVER_FEE = 100;
     uint32 internal constant RESCUE_DELAY = 604800; // 7 days
     uint256 internal constant PROTOCOL_FEE = 40000;
-    uint256 internal constant INTEGRATOR_FEE = 5000; 
+    uint256 internal constant INTEGRATOR_FEE = 5000;
     uint256 internal constant INTEGRATOR_SHARES = 20;
     uint256 internal constant FEES_AMOUNT = 0.1 ether;
     uint256 internal constant PROTOCOL_FEE_AMOUNT = 0.096 ether;
@@ -157,10 +157,10 @@ contract BaseSetup is Test, Utils {
             );
         } else {
             escrowFactory = new EscrowFactory(
-                address(limitOrderProtocol), 
-                accessToken, 
-                charlie.addr, 
-                RESCUE_DELAY, 
+                address(limitOrderProtocol),
+                accessToken,
+                charlie.addr,
+                RESCUE_DELAY,
                 RESCUE_DELAY
             );
         }
@@ -260,15 +260,15 @@ contract BaseSetup is Test, Utils {
     }
 
     function _prepareDataDst(
-    ) internal view returns (IEscrowDst.ImmutablesDst memory escrowImmutables, uint256 srcCancellationTimestamp, EscrowDst escrow) {
+    ) internal view returns (IBaseEscrow.Immutables memory escrowImmutables, uint256 srcCancellationTimestamp, EscrowDst escrow) {
         return _prepareDataDstCustom(
-            HASHED_SECRET, 
-            TAKING_AMOUNT, 
-            alice.addr, 
+            HASHED_SECRET,
+            TAKING_AMOUNT,
+            alice.addr,
             resolvers[0],
-            address(dai), 
-            DST_SAFETY_DEPOSIT, 
-            PROTOCOL_FEE, 
+            address(dai),
+            DST_SAFETY_DEPOSIT,
+            PROTOCOL_FEE,
             INTEGRATOR_FEE,
             INTEGRATOR_SHARES,
             WHITELIST_PROTOCOL_FEE_DISCOUNT,
@@ -288,7 +288,7 @@ contract BaseSetup is Test, Utils {
         uint256 integratorShares,
         uint256 whitelistDiscount,
         bool isWhitelisted
-    ) internal view returns (IEscrowDst.ImmutablesDst memory, uint256, EscrowDst) {
+    ) internal view returns (IBaseEscrow.Immutables memory, uint256, EscrowDst) {
         protocolFee = isWhitelisted ? protocolFee * whitelistDiscount / BASE_1E2 : protocolFee;
 
         (uint256 integratorFeeAmount, uint256 protocolFeeAmount) = FeeCalcLib.getFeeAmounts(
@@ -300,7 +300,7 @@ contract BaseSetup is Test, Utils {
 
         bytes32 orderHash = bytes32(block.timestamp); // fake order hash
         uint256 srcCancellationTimestamp = block.timestamp + srcTimelocks.cancellation;
-        IEscrowDst.ImmutablesDst memory escrowImmutables = CrossChainTestLib.buildDstEscrowImmutables(
+        IBaseEscrow.Immutables memory escrowImmutables = CrossChainTestLib.buildDstEscrowImmutables(
             orderHash,
             hashlock,
             amount,

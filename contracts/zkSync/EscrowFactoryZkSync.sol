@@ -7,8 +7,7 @@ import { SimpleSettlement } from "limit-order-settlement/contracts/SimpleSettlem
 
 import { BaseEscrowFactory } from "../BaseEscrowFactory.sol";
 import { MerkleStorageInvalidator } from "../MerkleStorageInvalidator.sol";
-import { IEscrowSrc } from "../interfaces/IEscrowSrc.sol";
-import { IEscrowDst } from "../interfaces/IEscrowDst.sol";
+import { IBaseEscrow } from "../interfaces/IBaseEscrow.sol";
 import { ImmutablesLib } from "../libraries/ImmutablesLib.sol";
 
 import { EscrowDstZkSync } from "./EscrowDstZkSync.sol";
@@ -22,8 +21,7 @@ import { ZkSyncLib } from "./ZkSyncLib.sol";
  * @custom:security-contact security@1inch.io
  */
 contract EscrowFactoryZkSync is BaseEscrowFactory {
-    using ImmutablesLib for IEscrowSrc.Immutables;
-    using ImmutablesLib for IEscrowDst.ImmutablesDst;
+    using ImmutablesLib for IBaseEscrow.Immutables;
 
     bytes32 public immutable ESCROW_SRC_INPUT_HASH;
     bytes32 public immutable ESCROW_DST_INPUT_HASH;
@@ -56,14 +54,14 @@ contract EscrowFactoryZkSync is BaseEscrowFactory {
     /**
      * @notice See {IEscrowFactory-addressOfEscrowSrc}.
      */
-    function addressOfEscrowSrc(IEscrowSrc.Immutables calldata immutables) external view override returns (address) {
+    function addressOfEscrowSrc(IBaseEscrow.Immutables calldata immutables) external view override returns (address) {
         return ZkSyncLib.computeAddressZkSync(immutables.hash(), _PROXY_SRC_BYTECODE_HASH, address(this), ESCROW_SRC_INPUT_HASH);
     }
 
     /**
      * @notice See {IEscrowFactory-addressOfEscrowDst}.
      */
-    function addressOfEscrowDst(IEscrowDst.ImmutablesDst calldata immutables) external view override returns (address) {
+    function addressOfEscrowDst(IBaseEscrow.Immutables calldata immutables) external view override returns (address) {
         return ZkSyncLib.computeAddressZkSync(immutables.hash(), _PROXY_DST_BYTECODE_HASH, address(this), ESCROW_DST_INPUT_HASH);
     }
 

@@ -5,7 +5,7 @@ pragma solidity 0.8.23;
 import { Script } from "forge-std/Script.sol";
 
 import { Timelocks } from "contracts/libraries/TimelocksLib.sol";
-import { IEscrowDst } from "contracts/interfaces/IEscrowDst.sol";
+import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
 import { IResolverExample } from "contracts/interfaces/IResolverExample.sol";
 
 import { FeeCalcLib } from "test/utils/libraries/FeeCalcLib.sol";
@@ -39,8 +39,8 @@ contract DeployEscrowDst is Script {
             integratorFee,
             integratorShare
         );
-        
-        IEscrowDst.ImmutablesDst memory escrowImmutables = CrossChainTestLib.buildDstEscrowImmutables(
+
+        IBaseEscrow.Immutables memory escrowImmutables = CrossChainTestLib.buildDstEscrowImmutables(
             orderHash,
             hashlock,
             dstAmount,

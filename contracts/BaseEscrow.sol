@@ -6,6 +6,7 @@ import { IERC20 } from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol"
 import { AddressLib, Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 import { SafeERC20 } from "solidity-utils/contracts/libraries/SafeERC20.sol";
 
+import { ImmutablesLib } from "./libraries/ImmutablesLib.sol";
 import { Timelocks, TimelocksLib } from "./libraries/TimelocksLib.sol";
 
 import { IBaseEscrow } from "./interfaces/IBaseEscrow.sol";
@@ -19,6 +20,7 @@ abstract contract BaseEscrow is IBaseEscrow {
     using AddressLib for Address;
     using SafeERC20 for IERC20;
     using TimelocksLib for Timelocks;
+    using ImmutablesLib for Immutables;
 
     // Token that is used to access public withdraw or cancel functions.
     IERC20 private immutable _ACCESS_TOKEN;
@@ -33,8 +35,8 @@ abstract contract BaseEscrow is IBaseEscrow {
         _ACCESS_TOKEN = accessToken;
     }
 
-    modifier onlyTaker(Address taker) {
-        if (msg.sender != taker.get()) revert InvalidCaller();
+    modifier onlyTaker(address taker) {
+        if (msg.sender != taker) revert InvalidCaller();
         _;
     }
 
@@ -61,6 +63,19 @@ abstract contract BaseEscrow is IBaseEscrow {
     modifier onlyAccessTokenHolder() {
         if (_ACCESS_TOKEN.balanceOf(msg.sender) == 0) revert InvalidCaller();
         _;
+    }
+
+    /**
+     * @notice See {IBaseEscrow-rescueFunds}.
+     */
+    function rescueFunds(address token, uint256 amount, Immutables calldata immutables)
+        external
+        onlyTaker(immutables.taker.get())
+        onlyValidImmutables(immutables.hash())
+        onlyAfter(immutables.timelocks.rescueStart(RESCUE_DELAY))
+    {
+        _uniTransfer(token, msg.sender, amount);
+        emit FundsRescued(token, amount);
     }
 
     /**

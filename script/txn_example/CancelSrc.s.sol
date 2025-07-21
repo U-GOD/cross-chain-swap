@@ -5,7 +5,7 @@ pragma solidity 0.8.23;
 import { Script } from "forge-std/Script.sol";
 import { Address } from "solidity-utils/contracts/libraries/AddressLib.sol";
 
-import { IEscrowSrc } from "contracts/interfaces/IEscrowSrc.sol";
+import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
 import { IEscrowFactory } from "contracts/interfaces/IEscrowFactory.sol";
 import { IResolverExample } from "contracts/interfaces/IResolverExample.sol";
 import { Timelocks, TimelocksLib } from "contracts/libraries/TimelocksLib.sol";
@@ -28,7 +28,7 @@ contract CancelSrc is Script {
         uint256 srcAmount = 1; // 1 USDC
         uint256 safetyDeposit = 1;
 
-        IEscrowSrc.Immutables memory immutables = IEscrowSrc.Immutables({
+        IBaseEscrow.Immutables memory immutables = IBaseEscrow.Immutables({
             orderHash: orderHash,
             amount: srcAmount,
             maker: Address.wrap(uint160(deployer)),
@@ -36,7 +36,8 @@ contract CancelSrc is Script {
             token: Address.wrap(uint160(srcToken)),
             hashlock: hashlock,
             safetyDeposit: safetyDeposit,
-            timelocks: timelocks
+            timelocks: timelocks,
+            parameters: "" // Must skip params due only EscrowDst.withdraw() using it.
         });
 
         // address escrow = vm.envAddress("ESCROW_SRC");
@@ -45,7 +46,7 @@ contract CancelSrc is Script {
         address[] memory targets = new address[](1);
         bytes[] memory data = new bytes[](1);
         targets[0] = escrow;
-        data[0] = abi.encodeWithSelector(IEscrowSrc(escrow).cancel.selector, immutables);
+        data[0] = abi.encodeWithSelector(IBaseEscrow(escrow).cancel.selector, immutables);
 
         vm.startBroadcast(deployerPK);
         resolver.arbitraryCalls(targets, data);

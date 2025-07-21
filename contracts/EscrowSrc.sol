@@ -37,7 +37,7 @@ contract EscrowSrc is Escrow, IEscrowSrc {
      */
     function withdraw(bytes32 secret, Immutables calldata immutables)
         external
-        onlyTaker(immutables.taker)
+        onlyTaker(immutables.taker.get())
         onlyAfter(immutables.timelocks.get(TimelocksLib.Stage.SrcWithdrawal))
         onlyBefore(immutables.timelocks.get(TimelocksLib.Stage.SrcCancellation))
     {
@@ -52,7 +52,7 @@ contract EscrowSrc is Escrow, IEscrowSrc {
      */
     function withdrawTo(bytes32 secret, address target, Immutables calldata immutables)
         external
-        onlyTaker(immutables.taker)
+        onlyTaker(immutables.taker.get())
         onlyAfter(immutables.timelocks.get(TimelocksLib.Stage.SrcWithdrawal))
         onlyBefore(immutables.timelocks.get(TimelocksLib.Stage.SrcCancellation))
     {
@@ -82,7 +82,7 @@ contract EscrowSrc is Escrow, IEscrowSrc {
      */
     function cancel(Immutables calldata immutables)
         external
-        onlyTaker(immutables.taker)
+        onlyTaker(immutables.taker.get())
         onlyAfter(immutables.timelocks.get(TimelocksLib.Stage.SrcCancellation))
     {
         _cancel(immutables);
@@ -100,19 +100,6 @@ contract EscrowSrc is Escrow, IEscrowSrc {
         onlyAfter(immutables.timelocks.get(TimelocksLib.Stage.SrcPublicCancellation))
     {
         _cancel(immutables);
-    }
-
-    /**
-     * @notice See {IBaseEscrow-rescueFunds}.
-     */
-    function rescueFunds(address token, uint256 amount, Immutables calldata immutables)
-        external
-        onlyTaker(immutables.taker)
-        onlyValidImmutables(immutables.hash())
-        onlyAfter(immutables.timelocks.rescueStart(RESCUE_DELAY))
-    {
-        _uniTransfer(token, msg.sender, amount);
-        emit FundsRescued(token, amount);
     }
 
     /**
@@ -135,7 +122,10 @@ contract EscrowSrc is Escrow, IEscrowSrc {
      * @dev Transfers ERC20 tokens to the maker and native tokens to the caller.
      * @param immutables The immutable values used to deploy the clone contract.
      */
-    function _cancel(Immutables calldata immutables) internal onlyValidImmutables(immutables.hash()) {
+    function _cancel(Immutables calldata immutables)
+        internal
+        onlyValidImmutables(immutables.hash())
+    {
         IERC20(immutables.token.get()).safeTransfer(immutables.maker.get(), immutables.amount);
         _ethTransfer(msg.sender, immutables.safetyDeposit);
         emit EscrowCancelled();
