@@ -8,7 +8,6 @@ import { IOrderMixin } from "limit-order-protocol/contracts/interfaces/IOrderMix
 import { TakerTraits } from "limit-order-protocol/contracts/libraries/TakerTraitsLib.sol";
 
 import { IBaseEscrow } from "../../../contracts/interfaces/IBaseEscrow.sol";
-import { IEscrowSrc } from "../../../contracts/interfaces/IEscrowSrc.sol";
 import { IEscrowFactory } from "../../../contracts/interfaces/IEscrowFactory.sol";
 import { TimelocksLib } from "../../../contracts/libraries/TimelocksLib.sol";
 

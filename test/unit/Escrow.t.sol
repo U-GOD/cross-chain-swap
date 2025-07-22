@@ -428,7 +428,8 @@ contract EscrowTest is BaseSetup {
         emit IBaseEscrow.EscrowWithdrawal(SECRET);
         dstClone.withdraw(SECRET, immutables);
 
-        assertEq(dai.balanceOf(alice.addr), balanceAlice + TAKING_AMOUNT - immutables.integratorFeeAmount() - immutables.protocolFeeAmount());
+        assertEq(dai.balanceOf(alice.addr), 
+            balanceAlice + TAKING_AMOUNT - immutables.integratorFeeAmount() - immutables.protocolFeeAmount());
         assertEq(bob.addr.balance, balanceBob + DST_SAFETY_DEPOSIT);
         assertEq(dai.balanceOf(address(dstClone)), balanceEscrow - TAKING_AMOUNT);
         assertEq(address(dstClone).balance, balanceEscrowNative - DST_SAFETY_DEPOSIT);
@@ -488,7 +489,8 @@ contract EscrowTest is BaseSetup {
         vm.warp(block.timestamp + dstTimelocks.withdrawal + 10);
         dstClone.withdraw(SECRET, immutables);
 
-        assertEq(dai.balanceOf(alice.addr), balanceAlice + TAKING_AMOUNT - immutables.integratorFeeAmount() - immutables.protocolFeeAmount());
+        assertEq(dai.balanceOf(alice.addr), 
+            balanceAlice + TAKING_AMOUNT - immutables.integratorFeeAmount() - immutables.protocolFeeAmount());
         assertEq(bob.addr.balance, balanceBobNative + DST_SAFETY_DEPOSIT);
         assertEq(dai.balanceOf(address(dstClone)), DST_SAFETY_DEPOSIT);
         assertEq(address(dstClone).balance, 0);

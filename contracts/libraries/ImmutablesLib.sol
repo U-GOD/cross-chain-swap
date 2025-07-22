@@ -68,7 +68,7 @@ library ImmutablesLib {
         bytes calldata parameters = immutables.parameters;
         if (parameters.length < 0x60) revert IndexOutOfRange();
         assembly ("memory-safe") {
-            ret := calldataload(add(parameters.offset, 0x60))
+            ret := calldataload(add(parameters.offset, 0x40))
         }
     }
 
@@ -76,7 +76,7 @@ library ImmutablesLib {
         bytes calldata parameters = immutables.parameters;
         if (parameters.length < 0x80) revert IndexOutOfRange();
         assembly ("memory-safe") {
-            ret := calldataload(add(parameters.offset, 0x80))
+            ret := calldataload(add(parameters.offset, 0x60))
         }
     }
 
