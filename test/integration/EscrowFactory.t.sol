@@ -209,7 +209,7 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
                 swapData.order,
                 r,
                 vs,
-                dstAmount, // amount
+                dstAmount,
                 takerTraits,
                 args
             );
