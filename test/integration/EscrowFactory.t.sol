@@ -12,6 +12,9 @@ import { IEscrowFactory } from "contracts/interfaces/IEscrowFactory.sol";
 import { IBaseEscrow } from "contracts/interfaces/IBaseEscrow.sol";
 import { ImmutablesLib } from "contracts/libraries/ImmutablesLib.sol";
 
+import { BaseEscrowFactory } from "contracts/BaseEscrowFactory.sol";
+import { EscrowSrc } from "contracts/EscrowSrc.sol";
+
 import { BaseSetup } from "../utils/BaseSetup.sol";
 import { CrossChainTestLib } from "../utils/libraries/CrossChainTestLib.sol";
 import { ResolverReentrancy } from "../utils/mocks/ResolverReentrancy.sol";
@@ -176,7 +179,7 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
             (bool success,) = address(swapData.srcClone).call{ value: uint64(srcAmountCorrected) * 10 / 100 }("");
             assertEq(success, true);
 
-            (IEscrowDst.ImmutablesDst memory immutablesDst,,) = _prepareDataDstCustom(
+            (IBaseEscrow.Immutables memory immutablesDst,,) = _prepareDataDstCustom(
                 hashlock, 
                 dstAmount, 
                 alice.addr, 
@@ -196,10 +199,7 @@ contract IntegrationEscrowFactoryTest is BaseSetup {
                 token: Address.wrap(uint160(address(dai))),
                 safetyDeposit: dstSafetyDeposit,
                 chainId: block.chainid,
-                protocolFeeRecipient: immutablesDst.protocolFeeRecipient,
-                integratorFeeRecipient: immutablesDst.integratorFeeRecipient,
-                protocolFeeAmount: immutablesDst.protocolFeeAmount,
-                integratorFeeAmount: immutablesDst.integratorFeeAmount
+                parameters: immutablesDst.parameters
             });
 
             vm.prank(bob.addr);
